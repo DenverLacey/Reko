@@ -17,6 +17,11 @@ impl<'a> Tokenizer<'a> {
 		if let Some(&c) = self.source.peek() {
 			if c == '"' {
 				self.tokenize_string()
+			} else if c == ';' {
+				self.source.next();
+				Some(Token {
+					kind: TokenKind::End,
+				})
 			} else if c.is_ascii_digit() {
 				self.tokenize_number()
 			} else {
@@ -85,16 +90,13 @@ impl<'a> Tokenizer<'a> {
 
 	fn tokenize_identifier_or_keyword(&mut self) -> Option<Token> {
 		let mut string = String::new();
-		while let Some(c) = self.source.next_if(|&c| !c.is_whitespace()) {
+		while let Some(c) = self.source.next_if(|&c| !c.is_whitespace() && c != ';') {
 			string.push(c);
 		}
 
 		Some(match string.as_str() {
 			"end" => Token {
 				kind: TokenKind::End,
-			},
-			"def" => Token {
-				kind: TokenKind::Def,
 			},
 			"if" => Token {
 				kind: TokenKind::If,
@@ -120,6 +122,24 @@ impl<'a> Tokenizer<'a> {
 			"in" => Token {
 				kind: TokenKind::In,
 			},
+			"def" => Token {
+				kind: TokenKind::Def,
+			},
+			"var" => Token {
+				kind: TokenKind::Var,
+			},
+			"const" => Token {
+				kind: TokenKind::Const,
+			},
+			"struct" => Token {
+				kind: TokenKind::Struct,
+			},
+			"enum" => Token {
+				kind: TokenKind::Enum,
+			},
+			"include" => Token {
+				kind: TokenKind::Include,
+			},
 			_ => Token {
 				kind: TokenKind::Ident(string),
 			},
@@ -141,7 +161,6 @@ pub enum TokenKind {
 
 	// Keywords
 	End,
-	Def,
 	If,
 	Elif,
 	Else,
@@ -150,4 +169,61 @@ pub enum TokenKind {
 	Then,
 	Do,
 	In,
+	Def,
+	Var,
+	Const,
+	Struct,
+	Enum,
+	Include,
+}
+
+type Chunk = Vec<Token>;
+type Chunks = Vec<Chunk>;
+
+pub fn chunkify<'a>(t: &mut Tokenizer<'a>) -> Result<Chunks, String> {
+	let mut chunks = Chunks::new();
+
+	while let Some(token) = t.next() {
+		use TokenKind::*;
+		if !matches!(token.kind, Def | Var | Const | Struct | Enum | Include) {
+			return Err(format!("{:?} cannot be at top level!", token));
+		}
+
+		let mut chunk = Chunk::new();
+
+		if matches!(token.kind, Include) {
+			let include_path = t
+				.next()
+				.ok_or("Expected a file path to include!".to_string())?;
+
+			if !matches!(include_path.kind, Str(_)) {
+				return Err("Expected a file path to include!".to_string());
+			}
+
+			chunk.push(token);
+			chunk.push(include_path);
+		} else {
+			chunk.push(token);
+
+			let mut num_expected_ends = 1;
+			loop {
+				if let Some(token) = t.next() {
+					match token.kind {
+						End => num_expected_ends -= 1,
+						If | While | Def | Var | Const | Struct | Enum => num_expected_ends += 1,
+						_ => {}
+					}
+					chunk.push(token);
+				}
+
+				if num_expected_ends == 0 {
+					break;
+				}
+			}
+		}
+
+		chunks.push(chunk);
+	}
+
+	Ok(chunks)
 }
