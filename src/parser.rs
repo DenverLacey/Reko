@@ -61,6 +61,8 @@ impl<'a> Tokenizer<'a> {
 			string.push(c);
 		}
 
+		self.source.next(); // skip terminating `"`
+
 		Some(Token {
 			kind: TokenKind::Str(string),
 		})
@@ -91,6 +93,9 @@ impl<'a> Tokenizer<'a> {
 			"end" => Token {
 				kind: TokenKind::End,
 			},
+			"def" => Token {
+				kind: TokenKind::Def,
+			},
 			"if" => Token {
 				kind: TokenKind::If,
 			},
@@ -99,6 +104,12 @@ impl<'a> Tokenizer<'a> {
 			},
 			"else" => Token {
 				kind: TokenKind::Else,
+			},
+			"while" => Token {
+				kind: TokenKind::While,
+			},
+			"let" => Token {
+				kind: TokenKind::Let,
 			},
 			"then" => Token {
 				kind: TokenKind::Then,
@@ -130,9 +141,12 @@ pub enum TokenKind {
 
 	// Keywords
 	End,
+	Def,
 	If,
 	Elif,
 	Else,
+	While,
+	Let,
 	Then,
 	Do,
 	In,
