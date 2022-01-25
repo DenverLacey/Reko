@@ -227,3 +227,129 @@ pub fn chunkify<'a>(t: &mut Tokenizer<'a>) -> Result<Chunks, String> {
 
 	Ok(chunks)
 }
+
+#[derive(Debug)]
+pub struct Parser {}
+
+#[derive(Debug)]
+pub struct FIR {
+	kind: FIRKind,
+}
+
+#[derive(Debug)]
+pub enum FIRKind {
+	// Literals
+	Ident(String),
+	Int(i64),
+	Str(String),
+
+	// Keywords
+	End,
+	If,
+	Elif,
+	Else,
+	While,
+	Let(Vec<(bool, String)>),
+	Then,
+	Do,
+	In,
+	Def,
+	Var,
+	Struct,
+	StructMember(String, TypeSignature),
+	Enum,
+	Include(String),
+}
+
+#[derive(Debug)]
+pub enum TypeSignature {
+	Bool,
+	Int,
+	Str,
+	Ptr(Box<TypeSignature>),
+}
+
+impl Parser {
+	pub fn parse(&mut self, mut chunks: Chunks) -> Result<Vec<Vec<FIR>>, String> {
+		let mut fir_chunks = Vec::new();
+
+		while !chunks.is_empty() {
+			let mut made_progress = false;
+			let mut i = 0;
+			while i < chunks.len() {
+				let chunk = &mut chunks[i];
+				match self.try_parse(chunk) {
+					Ok(Some(parsed)) => {
+						made_progress = true;
+						fir_chunks.push(parsed);
+						chunks.swap_remove(i);
+					}
+					Ok(None) => i += 1,
+					Err(err) => return Err(err),
+				}
+			}
+
+			if !made_progress {
+				return Err("No progress made while parsing".to_string()); // make a better error message
+			}
+		}
+
+		Ok(fir_chunks)
+	}
+
+	fn try_parse(&mut self, chunk: &mut Chunk) -> Result<Option<Vec<FIR>>, String> {
+		let mut fir = Vec::new();
+		let mut iter = chunk.iter();
+
+		while let Some(token) = iter.next() {
+			match &token.kind {
+				// Literals
+				TokenKind::Ident(ident) => fir.push(FIR {
+					kind: FIRKind::Ident(ident.clone()),
+				}),
+				TokenKind::Int(int) => fir.push(FIR {
+					kind: FIRKind::Int(*int),
+				}),
+				TokenKind::Str(string) => fir.push(FIR {
+					kind: FIRKind::Str(string.clone()),
+				}),
+
+				// Keywords
+				TokenKind::End => fir.push(FIR { kind: FIRKind::End }),
+				TokenKind::If => fir.push(FIR { kind: FIRKind::If }),
+				TokenKind::Elif => fir.push(FIR {
+					kind: FIRKind::Elif,
+				}),
+				TokenKind::Else => fir.push(FIR {
+					kind: FIRKind::Else,
+				}),
+				TokenKind::While => fir.push(FIR {
+					kind: FIRKind::While,
+				}),
+				TokenKind::Let => todo!("implement parsing let expressions"),
+				TokenKind::Then => fir.push(FIR {
+					kind: FIRKind::Then,
+				}),
+				TokenKind::Do => fir.push(FIR { kind: FIRKind::Do }),
+				TokenKind::In => fir.push(FIR { kind: FIRKind::In }),
+				TokenKind::Def => fir.push(FIR { kind: FIRKind::Def }),
+				TokenKind::Var => fir.push(FIR { kind: FIRKind::Var }),
+				TokenKind::Const => todo!("implement constants during parsing"),
+				TokenKind::Struct => todo!("implement parsing struct declarations"),
+				TokenKind::Enum => fir.push(FIR {
+					kind: FIRKind::Enum,
+				}),
+				TokenKind::Include => {
+					let path_token = iter.next().unwrap();
+					if let TokenKind::Str(path) = &path_token.kind {
+						fir.push(FIR {
+							kind: FIRKind::Include(path.clone()),
+						});
+					}
+				}
+			}
+		}
+
+		Ok(Some(fir))
+	}
+}
