@@ -8,17 +8,19 @@ include "std.reko"
 const MY_CONST 23;
 var x MY_CONST 2 *;
 
-#struct Point
-#	x int
-#	y int
-#end
+struct Foo
+	activated bool
+	skeggles  int
+	name      str
+	pointer   * int
+end
 
-#enum Direction
-#	Up
-#	Down
-#	Left
-#	Right
-#end
+enum Direction
+	Up
+	Down
+	Left
+	Right
+end
 
 def main do
 	while

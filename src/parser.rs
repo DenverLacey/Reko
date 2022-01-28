@@ -315,8 +315,8 @@ impl Parser {
 	fn get_value(&self, name: &String) -> Option<&Value> {
 		let mut iter = self.scopes.iter();
 		while let Some(scope) = iter.next_back() {
-			if let Some(c) = scope.values.get(name) {
-				return Some(c);
+			if let Some(value) = scope.values.get(name) {
+				return Some(value);
 			}
 		}
 
@@ -396,9 +396,9 @@ pub enum FIRKind {
 	In,
 	Def,
 	Var,
-	Struct,
+	Struct(String),
 	StructMember(String, TypeSignature),
-	Enum,
+	Enum(String),
 	Include(String),
 
 	// Operators
@@ -645,12 +645,80 @@ impl Parser {
 						}
 					}
 				}
-				TokenKind::Struct => todo!("implement parsing struct declarations"),
+				TokenKind::Struct => {
+					let ident_kind = &queued.chunk[queued.cursor].kind;
+					queued.cursor += 1;
+
+					if let TokenKind::Ident(ident) = ident_kind {
+						queued.fir.push(FIR {
+							kind: FIRKind::Struct(ident.clone()),
+						});
+					} else {
+						return Err("Expected an identifier after `struct` keyword.".to_string());
+					}
+
+					loop {
+						if queued.cursor >= queued.chunk.len() {
+							return Err(
+								"Expected `end` to terminate struct declaration but reached EOF!".to_string(),
+							);
+						}
+
+						let member_kind = &queued.chunk[queued.cursor].kind;
+						queued.cursor += 1;
+
+						if let TokenKind::Ident(member_ident) = member_kind {
+							let member_ident = member_ident.clone();
+							println!("member_ident = {}", member_ident);
+							let type_signature = self.parse_type_signature(queued)?;
+							queued.fir.push(FIR {
+								kind: FIRKind::StructMember(member_ident, type_signature),
+							});
+						} else if let TokenKind::End = member_kind {
+							queued.fir.push(FIR { kind: FIRKind::End });
+							break;
+						} else {
+							return Err(
+								"Expected an identifer for a struct member in struct declaration!".to_string(),
+							);
+						}
+					}
+				}
 				TokenKind::Enum => {
-					self.scopes.push(Scope::new(ScopeKind::Enum));
-					queued.fir.push(FIR {
-						kind: FIRKind::Enum,
-					});
+					let ident_kind = &queued.chunk[queued.cursor].kind;
+					queued.cursor += 1;
+
+					if let TokenKind::Ident(ident) = ident_kind {
+						queued.fir.push(FIR {
+							kind: FIRKind::Enum(ident.clone()),
+						});
+					} else {
+						return Err("Expected an identifier after `enum` keyword.".to_string());
+					}
+
+					loop {
+						if queued.cursor >= queued.chunk.len() {
+							return Err(
+								"Expected `end` to terminate enum declaration but reached EOF!".to_string(),
+							);
+						}
+
+						let variant_kind = &queued.chunk[queued.cursor].kind;
+						queued.cursor += 1;
+
+						if let TokenKind::Ident(variant_ident) = variant_kind {
+							queued.fir.push(FIR {
+								kind: FIRKind::Ident(variant_ident.clone()),
+							});
+						} else if let TokenKind::End = variant_kind {
+							queued.fir.push(FIR { kind: FIRKind::End });
+							break;
+						} else {
+							return Err(
+								"Expected an identifer for an enum variant in struct declaration!".to_string(),
+							);
+						}
+					}
 				}
 				TokenKind::Include => {
 					let path_kind = &queued.chunk[queued.cursor].kind;
@@ -683,5 +751,31 @@ impl Parser {
 		}
 
 		Ok(())
+	}
+
+	fn parse_type_signature(&mut self, queued: &mut Queued) -> Result<TypeSignature, String> {
+		let kind = &queued.chunk[queued.cursor].kind;
+		queued.cursor += 1;
+
+		let type_signature = match kind {
+			TokenKind::Ident(type_name) => {
+				if type_name == "bool" {
+					TypeSignature::Bool
+				} else if type_name == "int" {
+					TypeSignature::Int
+				} else if type_name == "str" {
+					TypeSignature::Str
+				} else {
+					return Err(format!(
+						"Type name lookup not yet implemented: `{}`",
+						type_name
+					));
+				}
+			}
+			TokenKind::Star => TypeSignature::Ptr(Box::new(self.parse_type_signature(queued)?)),
+			_ => return Err(format!("Unexpected thingy in type signature `{:?}`", kind)),
+		};
+
+		Ok(type_signature)
 	}
 }
