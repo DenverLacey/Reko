@@ -22,6 +22,8 @@ pub fn parse<'a>(source: Peekable<Chars<'a>>) -> Result<Vec<Vec<IR>>, String> {
 
 	println!("{:#?}", parser);
 
+	println!("{:#?}", ir);
+
 	Ok(ir)
 }
 
@@ -189,6 +191,8 @@ impl<'a> Tokenizer<'a> {
 	}
 }
 
+type Tokens = Peekable<std::vec::IntoIter<Token>>;
+
 #[derive(Debug)]
 struct Token {
 	kind: TokenKind,
@@ -284,6 +288,8 @@ struct Parser {
 	scopes: Vec<Scope>,
 	next_var_id: usize,
 	next_func_id: usize,
+	next_struct_id: usize,
+	next_enum_id: usize,
 }
 
 impl Parser {
@@ -293,6 +299,8 @@ impl Parser {
 			scopes: Default::default(),
 			next_var_id: 0,
 			next_func_id: 0,
+			next_struct_id: 0,
+			next_enum_id: 0,
 		}
 	}
 
@@ -319,11 +327,11 @@ impl Parser {
 		}
 	}
 
-	fn evaluate_constant(&self, iter: &mut std::vec::IntoIter<Token>) -> Constant {
+	fn evaluate_constant(&self, tokens: &mut Tokens) -> Constant {
 		// @TODO:
 		// Actually evaluate the constant
 		//
-		while let Some(t) = iter.next() {
+		while let Some(t) = tokens.next() {
 			if matches!(t.kind, TokenKind::End) {
 				break;
 			}
@@ -353,7 +361,7 @@ impl Parser {
 	fn parse_chunk(&mut self, chunk: Chunk) -> Result<Vec<IR>, String> {
 		let mut generated = Vec::new();
 
-		let mut iter = chunk.into_iter();
+		let mut iter = chunk.into_iter().peekable();
 		while let Some(token) = iter.next() {
 			use TokenKind::*;
 			match token.kind {
@@ -424,14 +432,51 @@ impl Parser {
 					self.push_scope(ScopeKind::Else);
 					generated.push(IR { kind: IRKind::Else });
 				}
-				While => todo!(),
+				While => generated.push(IR {
+					kind: IRKind::While,
+				}),
 				Let => todo!(),
 				Then => {
 					self.push_scope(ScopeKind::If);
+					generated.push(IR { kind: IRKind::Then });
 				}
-				Do => todo!(),
+				Do => {
+					self.push_scope(ScopeKind::Def);
+					generated.push(IR { kind: IRKind::Do });
+				}
 				In => todo!(),
-				Def => todo!(),
+				Def => {
+					let ident = match iter.next() {
+						Some(Token {
+							kind: TokenKind::Ident(ident),
+						}) => ident,
+						_ => return Err("Expected an identifier after `def` keyword!".to_string()),
+					};
+
+					generated.push(IR {
+						kind: IRKind::Def(ident),
+					});
+
+					loop {
+						match iter.peek() {
+							Some(Token {
+								kind: TokenKind::Do,
+							}) => {
+								generated.push(IR { kind: IRKind::Do });
+								self.push_scope(ScopeKind::Def);
+								iter.next(); // skip the do
+								break;
+							}
+							None => return Err("Unexpected EOF while parsing function!".to_string()),
+							_ => {}
+						}
+
+						let arg_type_signature = self.parse_type_signature(&mut iter)?;
+						generated.push(IR {
+							kind: IRKind::FunctionArgument(arg_type_signature),
+						});
+					}
+				}
 				Var => todo!(),
 				Const => {
 					let ident = match iter.next() {
@@ -533,11 +578,8 @@ impl Parser {
 		Ok(generated)
 	}
 
-	fn parse_type_signature(
-		&self,
-		iter: &mut std::vec::IntoIter<Token>,
-	) -> Result<TypeSignature, String> {
-		match iter.next() {
+	fn parse_type_signature(&self, tokens: &mut Tokens) -> Result<TypeSignature, String> {
+		match tokens.next() {
 			Some(Token {
 				kind: TokenKind::Ident(ident),
 			}) => {
@@ -559,7 +601,7 @@ impl Parser {
 			Some(Token {
 				kind: TokenKind::Star,
 			}) => Ok(TypeSignature::Ptr(Box::new(
-				self.parse_type_signature(iter)?,
+				self.parse_type_signature(tokens)?,
 			))),
 			None => Err("Unexpected EOF while parsing type signature!".to_string()),
 			_ => Err("Invalid type signature!".to_string()),
@@ -630,6 +672,7 @@ enum IRKind {
 	Do,
 	In,
 	Def(String),
+	FunctionArgument(TypeSignature),
 	Var(String),
 	Struct(String),
 	StructMember(String, TypeSignature),
