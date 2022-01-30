@@ -2,6 +2,8 @@ use std::collections::HashMap;
 use std::iter::Peekable;
 use std::str::Chars;
 
+use crate::evaluator;
+
 // @TODO:
 // Implement out-of-order compilation.
 // (For now we're simplifying the problem to make early progress and to give
@@ -121,6 +123,12 @@ impl<'a> Tokenizer<'a> {
 		}
 
 		Some(match string.as_str() {
+			"true" => Token {
+				kind: TokenKind::True,
+			},
+			"false" => Token {
+				kind: TokenKind::False,
+			},
 			"end" => Token {
 				kind: TokenKind::End,
 			},
@@ -166,6 +174,9 @@ impl<'a> Tokenizer<'a> {
 			"include" => Token {
 				kind: TokenKind::Include,
 			},
+			"--" => Token {
+				kind: TokenKind::DashDash,
+			},
 			"print" => Token {
 				kind: TokenKind::Print,
 			},
@@ -201,6 +212,8 @@ struct Token {
 #[derive(Debug)]
 enum TokenKind {
 	// Literals
+	True,
+	False,
 	Ident(String),
 	Int(i64),
 	Str(String),
@@ -221,6 +234,7 @@ enum TokenKind {
 	Struct,
 	Enum,
 	Include,
+	DashDash,
 
 	// Operators
 	Print,
@@ -327,20 +341,23 @@ impl Parser {
 		}
 	}
 
-	fn evaluate_constant(&self, tokens: &mut Tokens) -> Constant {
+	fn evaluate_constant(&mut self, tokens: &mut Tokens) -> Result<Constant, String> {
 		// @TODO:
 		// Actually evaluate the constant
 		//
+		let mut constant_chunk = Chunk::new();
 		while let Some(t) = tokens.next() {
 			if matches!(t.kind, TokenKind::End) {
 				break;
 			}
+			constant_chunk.push(t);
 		}
 
-		Constant::Int(6969)
+		let constant_ir = self.parse_chunk(constant_chunk)?;
+		evaluator::constant_evaluate(constant_ir)
 	}
 
-	fn bind_constant(&mut self, name: String, constant: Constant) -> Result<(), String> {
+	fn bind(&mut self, name: String, binding: Binding) -> Result<(), String> {
 		let scope = if self.scopes.is_empty() {
 			&mut self.global
 		} else {
@@ -351,8 +368,30 @@ impl Parser {
 			return Err(format!("Redeclared identifier `{}`", name));
 		}
 
-		scope.bindings.insert(name, Binding::Constant(constant));
+		scope.bindings.insert(name, binding);
 
+		Ok(())
+	}
+
+	fn bind_constant(&mut self, name: String, constant: Constant) -> Result<(), String> {
+		self.bind(name, Binding::Constant(constant))
+	}
+
+	fn bind_function(&mut self, name: String) -> Result<(), String> {
+		self.bind(name, Binding::Function(self.next_func_id))?;
+		self.next_func_id += 1;
+		Ok(())
+	}
+
+	fn bind_struct(&mut self, name: String) -> Result<(), String> {
+		self.bind(name, Binding::Struct(self.next_struct_id))?;
+		self.next_struct_id += 1;
+		Ok(())
+	}
+
+	fn bind_enum(&mut self, name: String) -> Result<(), String> {
+		self.bind(name, Binding::Enum(self.next_enum_id))?;
+		self.next_enum_id += 1;
 		Ok(())
 	}
 }
@@ -366,6 +405,12 @@ impl Parser {
 			use TokenKind::*;
 			match token.kind {
 				// Literals
+				True => generated.push(IR {
+					kind: IRKind::PushBool(true),
+				}),
+				False => generated.push(IR {
+					kind: IRKind::PushBool(false),
+				}),
 				Ident(ident) => {
 					match self
 						.get_binding(&ident)
@@ -453,6 +498,8 @@ impl Parser {
 						_ => return Err("Expected an identifier after `def` keyword!".to_string()),
 					};
 
+					self.bind_function(ident.clone())?;
+
 					generated.push(IR {
 						kind: IRKind::Def(ident),
 					});
@@ -467,14 +514,22 @@ impl Parser {
 								iter.next(); // skip the do
 								break;
 							}
+							Some(Token {
+								kind: TokenKind::DashDash,
+							}) => {
+								generated.push(IR {
+									kind: IRKind::DashDash,
+								});
+								iter.next(); // skip --
+							}
 							None => return Err("Unexpected EOF while parsing function!".to_string()),
-							_ => {}
+							_ => {
+								let arg_type_signature = self.parse_type_signature(&mut iter)?;
+								generated.push(IR {
+									kind: IRKind::FunctionArgument(arg_type_signature),
+								});
+							}
 						}
-
-						let arg_type_signature = self.parse_type_signature(&mut iter)?;
-						generated.push(IR {
-							kind: IRKind::FunctionArgument(arg_type_signature),
-						});
 					}
 				}
 				Var => todo!(),
@@ -485,7 +540,7 @@ impl Parser {
 						}) => ident,
 						_ => return Err("Expected an identifier after `const` keyword!".to_string()),
 					};
-					let value = self.evaluate_constant(&mut iter);
+					let value = self.evaluate_constant(&mut iter)?;
 					self.bind_constant(ident, value)?;
 				}
 				Struct => {
@@ -495,6 +550,8 @@ impl Parser {
 						}) => ident,
 						_ => return Err("Expected an identifier after `struct` keyword!".to_string()),
 					};
+
+					self.bind_struct(ident.clone())?;
 
 					generated.push(IR {
 						kind: IRKind::Struct(ident),
@@ -526,6 +583,8 @@ impl Parser {
 						_ => return Err("Expected an identifier after `enum` keyword!".to_string()),
 					};
 
+					self.bind_enum(ident.clone())?;
+
 					generated.push(IR {
 						kind: IRKind::Enum(ident),
 					});
@@ -556,6 +615,9 @@ impl Parser {
 					}),
 					_ => return Err("Expected a path to include after `include` keyword!".to_string()),
 				},
+				DashDash => generated.push(IR {
+					kind: IRKind::DashDash,
+				}),
 
 				// Operators
 				Print => generated.push(IR {
@@ -591,8 +653,8 @@ impl Parser {
 					Ok(TypeSignature::Str)
 				} else {
 					match self.get_binding(&ident) {
-						Some(Binding::Struct(id)) => todo!(),
-						Some(Binding::Enum(id)) => todo!(),
+						Some(Binding::Struct(id)) => Ok(TypeSignature::Struct(*id)),
+						Some(Binding::Enum(id)) => Ok(TypeSignature::Enum(*id)),
 						None => Err(format!("Undeclared identifier `{}`", ident)),
 						_ => Err("Invalid type signature!".to_string()),
 					}
@@ -643,7 +705,7 @@ enum Binding {
 }
 
 #[derive(Debug)]
-enum Constant {
+pub enum Constant {
 	Bool(bool),
 	Int(i64),
 	Str(String),
@@ -651,11 +713,11 @@ enum Constant {
 
 #[derive(Debug)]
 pub struct IR {
-	kind: IRKind,
+	pub kind: IRKind,
 }
 
 #[derive(Debug)]
-enum IRKind {
+pub enum IRKind {
 	// Literals
 	PushBool(bool),
 	PushInt(i64),
@@ -679,6 +741,7 @@ enum IRKind {
 	Enum(String),
 	EnumVariant(String, usize),
 	Include(String),
+	DashDash,
 
 	// Operators
 	Print,
@@ -691,7 +754,7 @@ enum IRKind {
 }
 
 #[derive(Debug)]
-enum TypeSignature {
+pub enum TypeSignature {
 	Bool,
 	Int,
 	Str,
