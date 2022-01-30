@@ -1,6 +1,6 @@
 use crate::parser;
 
-pub fn constant_evaluate(code: Vec<parser::IR>) -> Result<parser::Constant, String> {
+pub fn constant_evaluate(code: parser::IRChunk) -> Result<parser::Constant, String> {
 	let mut stack = Vec::new();
 
 	let mut iter = code.into_iter();

@@ -9,7 +9,7 @@ use crate::evaluator;
 // (For now we're simplifying the problem to make early progress and to give
 // us context when we do)
 //
-pub fn parse<'a>(source: Peekable<Chars<'a>>) -> Result<Vec<Vec<IR>>, String> {
+pub fn parse<'a>(source: Peekable<Chars<'a>>) -> Result<IRChunks, String> {
 	let mut tokenizer = Tokenizer::new(source);
 	let chunks = chunkify(&mut tokenizer)?;
 	println!("{:#?}", chunks);
@@ -397,8 +397,8 @@ impl Parser {
 }
 
 impl Parser {
-	fn parse_chunk(&mut self, chunk: Chunk) -> Result<Vec<IR>, String> {
-		let mut generated = Vec::new();
+	fn parse_chunk(&mut self, chunk: Chunk) -> Result<IRChunk, String> {
+		let mut generated = IRChunk::new();
 
 		let mut iter = chunk.into_iter().peekable();
 		while let Some(token) = iter.next() {
@@ -710,6 +710,9 @@ pub enum Constant {
 	Int(i64),
 	Str(String),
 }
+
+pub type IRChunk = Vec<IR>;
+pub type IRChunks = Vec<IRChunk>;
 
 #[derive(Debug)]
 pub struct IR {
