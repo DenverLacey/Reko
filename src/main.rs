@@ -9,6 +9,10 @@ include "std.reko"
 const X 5;
 const Y X 2 *;
 const MY-CONST Y 5 +;
+const MESSAGE 
+	"Evaluating `MESSAGE` constant!" print
+	"Hello Mx. Ramble!"
+end
 #var x MY-CONST 2 *;
 
 struct Foo
@@ -48,7 +52,7 @@ def main do
 			7 2 -
 		end 1 =
 	do
-		"HELLO!" print
+		MESSAGE print
 	end
 end"#
 			.chars()

@@ -1,7 +1,7 @@
 use crate::parser;
 
 pub fn constant_evaluate(code: Vec<parser::IR>) -> Result<parser::Constant, String> {
-	let mut stack: Vec<parser::Constant> = Vec::new();
+	let mut stack = Vec::new();
 
 	let mut iter = code.into_iter();
 	while let Some(instruction) = iter.next() {
@@ -33,7 +33,14 @@ pub fn constant_evaluate(code: Vec<parser::IR>) -> Result<parser::Constant, Stri
 			DashDash => todo!(),
 
 			// Operators
-			Print => todo!(),
+			Print => {
+				let value = stack.pop().ok_or("Stack underflow!".to_string())?;
+				match value {
+					parser::Constant::Bool(value) => println!("{}", value),
+					parser::Constant::Int(value) => println!("{}", value),
+					parser::Constant::Str(value) => println!("{}", value),
+				}
+			}
 			Add => {
 				let a = stack.pop().ok_or("Stack underflow!".to_string())?;
 				let b = stack.pop().ok_or("Stack underflow!".to_string())?;
