@@ -2,17 +2,40 @@ use std::collections::HashMap;
 use std::iter::Peekable;
 use std::str::Chars;
 
+// @TODO:
+// Implement out-of-order compilation.
+// (For now we're simplifying the problem to make early progress and to give
+// us context when we do)
+//
+pub fn parse<'a>(source: Peekable<Chars<'a>>) -> Result<Vec<Vec<IR>>, String> {
+	let mut tokenizer = Tokenizer::new(source);
+	let chunks = chunkify(&mut tokenizer)?;
+	println!("{:#?}", chunks);
+
+	let mut parser = Parser::new();
+	let mut ir = Vec::new();
+
+	for chunk in chunks {
+		let chunk_ir = parser.parse_chunk(chunk)?;
+		ir.push(chunk_ir);
+	}
+
+	println!("{:#?}", parser);
+
+	Ok(ir)
+}
+
 #[derive(Debug)]
-pub struct Tokenizer<'a> {
+struct Tokenizer<'a> {
 	source: Peekable<Chars<'a>>,
 }
 
 impl<'a> Tokenizer<'a> {
-	pub fn new(source: Peekable<Chars<'a>>) -> Self {
+	fn new(source: Peekable<Chars<'a>>) -> Self {
 		Self { source }
 	}
 
-	pub fn next(&mut self) -> Option<Token> {
+	fn next(&mut self) -> Option<Token> {
 		self.skip_whitespace();
 
 		if let Some(&c) = self.source.peek() {
@@ -167,12 +190,12 @@ impl<'a> Tokenizer<'a> {
 }
 
 #[derive(Debug)]
-pub struct Token {
+struct Token {
 	kind: TokenKind,
 }
 
 #[derive(Debug)]
-pub enum TokenKind {
+enum TokenKind {
 	// Literals
 	Ident(String),
 	Int(i64),
@@ -207,7 +230,7 @@ pub enum TokenKind {
 type Chunk = Vec<Token>;
 type Chunks = Vec<Chunk>;
 
-pub fn chunkify<'a>(t: &mut Tokenizer<'a>) -> Result<Chunks, String> {
+fn chunkify<'a>(t: &mut Tokenizer<'a>) -> Result<Chunks, String> {
 	let mut chunks = Chunks::new();
 
 	while let Some(token) = t.next() {
@@ -256,108 +279,325 @@ pub fn chunkify<'a>(t: &mut Tokenizer<'a>) -> Result<Chunks, String> {
 }
 
 #[derive(Debug)]
-pub struct Parser {
-	scopes: Vec<Scope>,
+struct Parser {
 	global: Scope,
+	scopes: Vec<Scope>,
 	next_var_id: usize,
+	next_func_id: usize,
 }
 
 impl Parser {
-	pub fn new() -> Self {
+	fn new() -> Self {
 		Self {
-			scopes: Default::default(),
 			global: Scope::new(ScopeKind::Global),
+			scopes: Default::default(),
 			next_var_id: 0,
+			next_func_id: 0,
 		}
 	}
 
-	fn add_constant(&mut self, name: &String, constant: Constant) -> Result<(), String> {
-		println!("ADD CONSTANT!");
-
-		let scope = if self.scopes.is_empty() {
-			&mut self.global
-		} else {
-			self.scopes.last_mut().unwrap()
-		};
-
-		let previous = scope.values.insert(name.clone(), Value::Constant(constant));
-		if previous.is_some() {
-			return Err(format!("Redeclaration of constant `{}`", name));
-		}
-
-		Ok(())
+	fn push_scope(&mut self, kind: ScopeKind) {
+		self.scopes.push(Scope::new(kind));
 	}
 
-	fn add_variable(&mut self, name: &String) -> Result<(), String> {
-		println!("ADD VARIABLE#{}", self.next_var_id);
-
-		let scope = if self.scopes.is_empty() {
-			&mut self.global
-		} else {
-			self.scopes.last_mut().unwrap()
-		};
-
-		let previous = scope.values.insert(
-			name.clone(),
-			Value::Variable(Variable {
-				index: self.next_var_id,
-			}),
-		);
-		if previous.is_some() {
-			return Err(format!("Redeclaration of constant `{}`", name));
-		}
-
-		self.next_var_id += 1;
-
-		Ok(())
+	fn pop_scope(&mut self) -> Option<Scope> {
+		self.scopes.pop()
 	}
 
-	fn get_value(&self, name: &String) -> Option<&Value> {
+	fn get_binding(&self, name: &String) -> Option<&Binding> {
 		let mut iter = self.scopes.iter();
 		while let Some(scope) = iter.next_back() {
-			if let Some(value) = scope.values.get(name) {
+			if let Some(value) = scope.bindings.get(name) {
 				return Some(value);
 			}
 		}
 
-		self.global.values.get(name)
+		if let Some(value) = self.global.bindings.get(name) {
+			Some(value)
+		} else {
+			None
+		}
+	}
+
+	fn evaluate_constant(&self, iter: &mut std::vec::IntoIter<Token>) -> Constant {
+		// @TODO:
+		// Actually evaluate the constant
+		//
+		while let Some(t) = iter.next() {
+			if matches!(t.kind, TokenKind::End) {
+				break;
+			}
+		}
+
+		Constant::Int(6969)
+	}
+
+	fn bind_constant(&mut self, name: String, constant: Constant) -> Result<(), String> {
+		let scope = if self.scopes.is_empty() {
+			&mut self.global
+		} else {
+			self.scopes.last_mut().expect("We just checked is_empty")
+		};
+
+		if scope.bindings.contains_key(&name) {
+			return Err(format!("Redeclared identifier `{}`", name));
+		}
+
+		scope.bindings.insert(name, Binding::Constant(constant));
+
+		Ok(())
+	}
+}
+
+impl Parser {
+	fn parse_chunk(&mut self, chunk: Chunk) -> Result<Vec<IR>, String> {
+		let mut generated = Vec::new();
+
+		let mut iter = chunk.into_iter();
+		while let Some(token) = iter.next() {
+			use TokenKind::*;
+			match token.kind {
+				// Literals
+				Ident(ident) => {
+					match self
+						.get_binding(&ident)
+						.ok_or_else(|| format!("Unknown identifier `{}`", ident))?
+					{
+						Binding::Constant(constant) => match constant {
+							Constant::Bool(value) => generated.push(IR {
+								kind: IRKind::PushBool(*value),
+							}),
+							Constant::Int(value) => generated.push(IR {
+								kind: IRKind::PushInt(*value),
+							}),
+							Constant::Str(value) => generated.push(IR {
+								kind: IRKind::PushStr(value.clone()),
+							}),
+						},
+						Binding::Variable(id) => todo!(),
+						Binding::Function(id) => generated.push(IR {
+							kind: IRKind::Call(*id),
+						}),
+						Binding::Struct(_) => todo!(),
+						Binding::Enum(_) => todo!(),
+					}
+				}
+				Int(value) => generated.push(IR {
+					kind: IRKind::PushInt(value),
+				}),
+				Str(value) => generated.push(IR {
+					kind: IRKind::PushStr(value),
+				}),
+
+				// Keywords
+				End => {
+					self
+						.pop_scope()
+						.ok_or("Unexpected `end` keyword. No blocks to end!")?;
+					generated.push(IR { kind: IRKind::End });
+				}
+				If => generated.push(IR { kind: IRKind::If }),
+				Elif => {
+					let previous = self.pop_scope();
+					if !matches!(
+						previous,
+						Some(Scope {
+							kind: ScopeKind::If,
+							bindings: _
+						})
+					) {
+						return Err("`elif` block without a parent `if` block!".to_string());
+					}
+					generated.push(IR { kind: IRKind::Elif });
+				}
+				Else => {
+					let previous = self.pop_scope();
+					if !matches!(
+						previous,
+						Some(Scope {
+							kind: ScopeKind::If,
+							bindings: _
+						})
+					) {
+						return Err("`else` block without a parent `if` block!".to_string());
+					}
+					self.push_scope(ScopeKind::Else);
+					generated.push(IR { kind: IRKind::Else });
+				}
+				While => todo!(),
+				Let => todo!(),
+				Then => {
+					self.push_scope(ScopeKind::If);
+				}
+				Do => todo!(),
+				In => todo!(),
+				Def => todo!(),
+				Var => todo!(),
+				Const => {
+					let ident = match iter.next() {
+						Some(Token {
+							kind: TokenKind::Ident(ident),
+						}) => ident,
+						_ => return Err("Expected an identifier after `const` keyword!".to_string()),
+					};
+					let value = self.evaluate_constant(&mut iter);
+					self.bind_constant(ident, value)?;
+				}
+				Struct => {
+					let ident = match iter.next() {
+						Some(Token {
+							kind: TokenKind::Ident(ident),
+						}) => ident,
+						_ => return Err("Expected an identifier after `struct` keyword!".to_string()),
+					};
+
+					generated.push(IR {
+						kind: IRKind::Struct(ident),
+					});
+
+					loop {
+						match iter.next() {
+							None => return Err("Unexpected EOF while parsing struct!".to_string()),
+							Some(Token {
+								kind: TokenKind::End,
+							}) => break,
+							Some(Token {
+								kind: TokenKind::Ident(ident),
+							}) => {
+								let type_signature = self.parse_type_signature(&mut iter)?;
+								generated.push(IR {
+									kind: IRKind::StructMember(ident, type_signature),
+								});
+							}
+							_ => return Err("Expected identifier of a struct field!".to_string()),
+						}
+					}
+				}
+				Enum => {
+					let ident = match iter.next() {
+						Some(Token {
+							kind: TokenKind::Ident(ident),
+						}) => ident,
+						_ => return Err("Expected an identifier after `enum` keyword!".to_string()),
+					};
+
+					generated.push(IR {
+						kind: IRKind::Enum(ident),
+					});
+
+					let mut variant_id = 0;
+					loop {
+						match iter.next() {
+							None => return Err("Unexpected EOF while parsing enum!".to_string()),
+							Some(Token {
+								kind: TokenKind::End,
+							}) => break,
+							Some(Token {
+								kind: TokenKind::Ident(variant),
+							}) => generated.push(IR {
+								kind: IRKind::EnumVariant(variant, variant_id),
+							}),
+							_ => return Err("Expected identifier of an enum variant!".to_string()),
+						}
+
+						variant_id += 1;
+					}
+				}
+				Include => match iter.next() {
+					Some(Token {
+						kind: TokenKind::Str(path),
+					}) => generated.push(IR {
+						kind: IRKind::Include(path),
+					}),
+					_ => return Err("Expected a path to include after `include` keyword!".to_string()),
+				},
+
+				// Operators
+				Print => generated.push(IR {
+					kind: IRKind::Print,
+				}),
+				Plus => generated.push(IR { kind: IRKind::Add }),
+				Dash => generated.push(IR {
+					kind: IRKind::Subtract,
+				}),
+				Star => generated.push(IR {
+					kind: IRKind::Multiply,
+				}),
+				Slash => generated.push(IR {
+					kind: IRKind::Divide,
+				}),
+				Eq => generated.push(IR { kind: IRKind::Eq }),
+			}
+		}
+
+		Ok(generated)
+	}
+
+	fn parse_type_signature(
+		&self,
+		iter: &mut std::vec::IntoIter<Token>,
+	) -> Result<TypeSignature, String> {
+		match iter.next() {
+			Some(Token {
+				kind: TokenKind::Ident(ident),
+			}) => {
+				if ident == "bool" {
+					Ok(TypeSignature::Bool)
+				} else if ident == "int" {
+					Ok(TypeSignature::Int)
+				} else if ident == "str" {
+					Ok(TypeSignature::Str)
+				} else {
+					match self.get_binding(&ident) {
+						Some(Binding::Struct(id)) => todo!(),
+						Some(Binding::Enum(id)) => todo!(),
+						None => Err(format!("Undeclared identifier `{}`", ident)),
+						_ => Err("Invalid type signature!".to_string()),
+					}
+				}
+			}
+			Some(Token {
+				kind: TokenKind::Star,
+			}) => Ok(TypeSignature::Ptr(Box::new(
+				self.parse_type_signature(iter)?,
+			))),
+			None => Err("Unexpected EOF while parsing type signature!".to_string()),
+			_ => Err("Invalid type signature!".to_string()),
+		}
 	}
 }
 
 #[derive(Debug)]
 struct Scope {
 	kind: ScopeKind,
-	values: HashMap<String, Value>,
+	bindings: HashMap<String, Binding>,
 }
 
 impl Scope {
 	fn new(kind: ScopeKind) -> Self {
 		Self {
 			kind,
-			values: Default::default(),
+			bindings: Default::default(),
 		}
 	}
 }
 
-#[derive(Debug, PartialEq)]
+#[derive(Debug)]
 enum ScopeKind {
 	Global,
+	Def,
 	If,
 	Elif,
 	Else,
-	While,
-	Let,
-	Def,
-	Var,
-	Const,
-	Struct,
-	Enum,
 }
 
 #[derive(Debug)]
-enum Value {
+enum Binding {
 	Constant(Constant),
-	Variable(Variable),
+	Variable(usize),
+	Function(usize),
+	Struct(usize),
+	Enum(usize),
 }
 
 #[derive(Debug)]
@@ -368,21 +608,16 @@ enum Constant {
 }
 
 #[derive(Debug)]
-struct Variable {
-	index: usize,
+pub struct IR {
+	kind: IRKind,
 }
 
 #[derive(Debug)]
-pub struct FIR {
-	kind: FIRKind,
-}
-
-#[derive(Debug)]
-pub enum FIRKind {
+enum IRKind {
 	// Literals
-	Ident(String),
-	Int(i64),
-	Str(String),
+	PushBool(bool),
+	PushInt(i64),
+	PushStr(String),
 
 	// Keywords
 	End,
@@ -390,392 +625,34 @@ pub enum FIRKind {
 	Elif,
 	Else,
 	While,
-	Let(Vec<(bool, String)>),
+	Let,
 	Then,
 	Do,
 	In,
-	Def,
-	Var,
+	Def(String),
+	Var(String),
 	Struct(String),
 	StructMember(String, TypeSignature),
 	Enum(String),
+	EnumVariant(String, usize),
 	Include(String),
 
 	// Operators
 	Print,
-	Plus,
-	Dash,
-	Star,
-	Slash,
+	Add,
+	Subtract,
+	Multiply,
+	Divide,
 	Eq,
-	LoadVar(usize),
+	Call(usize),
 }
 
 #[derive(Debug)]
-pub enum TypeSignature {
+enum TypeSignature {
 	Bool,
 	Int,
 	Str,
 	Ptr(Box<TypeSignature>),
-}
-
-struct Queued {
-	chunk: Chunk,
-	fir: Vec<FIR>,
-	cursor: usize,
-}
-
-impl Queued {
-	fn new(chunk: Chunk) -> Self {
-		Queued {
-			chunk,
-			fir: Default::default(),
-			cursor: 0,
-		}
-	}
-
-	fn finished(&self) -> bool {
-		self.cursor == self.chunk.len()
-	}
-
-	fn next(&mut self) -> Option<&Token> {
-		if self.cursor >= self.chunk.len() {
-			return None;
-		}
-		let n = &self.chunk[self.cursor];
-		self.cursor += 1;
-		Some(n)
-	}
-}
-
-impl Parser {
-	pub fn parse(&mut self, chunks: Chunks) -> Result<Vec<Vec<FIR>>, String> {
-		// @NOTE:
-		// Maybe we should do a small prepass to sort out the chunks so that we
-		// don't have to suspend parsing
-		//
-		let mut queued: Vec<_> = chunks.into_iter().map(|chunk| Queued::new(chunk)).collect();
-
-		while queued.iter().any(|q| !q.finished()) {
-			let mut i = 0;
-			let mut made_progess = false;
-
-			while i < queued.len() {
-				{
-					let q = &mut queued[i];
-					if q.finished() {
-						break;
-					}
-
-					self.try_parse(q)?;
-				}
-
-				if queued[i].finished() {
-					made_progess = true;
-					let q = queued.remove(i);
-					queued.push(q);
-				} else {
-					i += 1;
-				}
-			}
-
-			if !made_progess {
-				return Err("No progess made while parsing!".to_string()); // Make better error message
-			}
-		}
-
-		Ok(
-			queued
-				.into_iter()
-				.filter_map(|p| if p.fir.is_empty() { None } else { Some(p.fir) })
-				.collect(),
-		)
-	}
-
-	fn try_parse(&mut self, queued: &mut Queued) -> Result<(), String> {
-		while queued.cursor < queued.chunk.len() {
-			let kind = &queued.chunk[queued.cursor].kind;
-			queued.cursor += 1;
-
-			match kind {
-				// Literals
-				TokenKind::Ident(ident) => {
-					if let Some(value) = self.get_value(ident) {
-						match value {
-							Value::Constant(constant) => match constant {
-								Constant::Bool(value) => todo!("implement booleans"),
-								// queued.fir.push(FIR {
-								// 	kind: FIRKind::Bool(value),
-								// }),
-								Constant::Int(value) => queued.fir.push(FIR {
-									kind: FIRKind::Int(*value),
-								}),
-								Constant::Str(value) => queued.fir.push(FIR {
-									kind: FIRKind::Str(value.clone()),
-								}),
-							},
-							Value::Variable(variable) => queued.fir.push(FIR {
-								kind: FIRKind::LoadVar(variable.index),
-							}),
-						}
-					} else {
-						return Ok(());
-					}
-				}
-				TokenKind::Int(int) => queued.fir.push(FIR {
-					kind: FIRKind::Int(*int),
-				}),
-				TokenKind::Str(string) => queued.fir.push(FIR {
-					kind: FIRKind::Str(string.clone()),
-				}),
-
-				// Keywords
-				TokenKind::End => {
-					let popped = self
-						.scopes
-						.pop()
-						.ok_or("Encountered `end` when there is no scope to end.".to_string())?;
-					println!("Popped {:?}", popped);
-					queued.fir.push(FIR { kind: FIRKind::End });
-				}
-				TokenKind::If => {
-					self.scopes.push(Scope::new(ScopeKind::If));
-					queued.fir.push(FIR { kind: FIRKind::If });
-				}
-				TokenKind::Elif => {
-					let previous_scope = self
-						.scopes
-						.pop()
-						.ok_or("Encountered `elif` without a parent `if`.".to_string())?;
-
-					if previous_scope.kind != ScopeKind::If && previous_scope.kind != ScopeKind::Elif {
-						return Err("Encountered `elif` without a parent `if`.".to_string());
-					}
-
-					self.scopes.push(Scope::new(ScopeKind::Elif));
-					queued.fir.push(FIR {
-						kind: FIRKind::Elif,
-					});
-				}
-				TokenKind::Else => {
-					let previous_scope = self
-						.scopes
-						.pop()
-						.ok_or("Encountered `else` without a parent `if`.".to_string())?;
-
-					if previous_scope.kind != ScopeKind::If && previous_scope.kind != ScopeKind::Elif {
-						return Err("Encountered `else` without a parent `if`.".to_string());
-					}
-
-					self.scopes.push(Scope::new(ScopeKind::Else));
-					queued.fir.push(FIR {
-						kind: FIRKind::Else,
-					});
-				}
-				TokenKind::While => {
-					self.scopes.push(Scope::new(ScopeKind::While));
-					queued.fir.push(FIR {
-						kind: FIRKind::While,
-					});
-				}
-				TokenKind::Let => todo!("implement parsing let expressions"),
-				TokenKind::Then => queued.fir.push(FIR {
-					kind: FIRKind::Then,
-				}),
-				TokenKind::Do => queued.fir.push(FIR { kind: FIRKind::Do }),
-				TokenKind::In => queued.fir.push(FIR { kind: FIRKind::In }),
-				TokenKind::Def => {
-					self.scopes.push(Scope::new(ScopeKind::Def));
-					queued.fir.push(FIR { kind: FIRKind::Def });
-
-					if queued.cursor < queued.chunk.len() {
-						let kind = &queued.chunk[queued.cursor].kind;
-						queued.cursor += 1;
-						if let TokenKind::Ident(ident) = kind {
-							queued.fir.push(FIR {
-								kind: FIRKind::Ident(ident.clone()),
-							});
-						} else {
-							return Err("Expected an identifier after `def` keyword.".to_string());
-						}
-					} else {
-						return Err("Expected an identifier after `def` keyword.".to_string());
-					}
-				}
-				TokenKind::Var => {
-					queued.fir.push(FIR { kind: FIRKind::Var });
-
-					if queued.cursor < queued.chunk.len() {
-						let kind = &queued.chunk[queued.cursor].kind;
-						queued.cursor += 1;
-						if let TokenKind::Ident(ident) = kind {
-							self.add_variable(ident)?;
-							queued.fir.push(FIR {
-								kind: FIRKind::Ident(ident.clone()),
-							});
-						} else {
-							return Err("Expected an identifier after `var` keyword.".to_string());
-						}
-					} else {
-						return Err("Expected an identifier after `var` keyword.".to_string());
-					}
-
-					self.scopes.push(Scope::new(ScopeKind::Var));
-				}
-				TokenKind::Const => {
-					// @TODO
-					// Actually evaluate the value of the constant
-					//
-					let c = Constant::Int(0);
-
-					match queued.next() {
-						Some(Token {
-							kind: TokenKind::Ident(name),
-						}) => self.add_constant(&name, c)?,
-						_ => return Err("Expected name of constant after `const` keyword.".to_string()),
-					}
-
-					// @HACK
-					// Skipping everything up until the end of the constant declaration
-					//
-					while let Some(t) = queued.next() {
-						println!("Skipping {:?}", t);
-						if matches!(t.kind, TokenKind::End) {
-							break;
-						}
-					}
-				}
-				TokenKind::Struct => {
-					let ident_kind = &queued.chunk[queued.cursor].kind;
-					queued.cursor += 1;
-
-					if let TokenKind::Ident(ident) = ident_kind {
-						queued.fir.push(FIR {
-							kind: FIRKind::Struct(ident.clone()),
-						});
-					} else {
-						return Err("Expected an identifier after `struct` keyword.".to_string());
-					}
-
-					loop {
-						if queued.cursor >= queued.chunk.len() {
-							return Err(
-								"Expected `end` to terminate struct declaration but reached EOF!".to_string(),
-							);
-						}
-
-						let member_kind = &queued.chunk[queued.cursor].kind;
-						queued.cursor += 1;
-
-						if let TokenKind::Ident(member_ident) = member_kind {
-							let member_ident = member_ident.clone();
-							println!("member_ident = {}", member_ident);
-							let type_signature = self.parse_type_signature(queued)?;
-							queued.fir.push(FIR {
-								kind: FIRKind::StructMember(member_ident, type_signature),
-							});
-						} else if let TokenKind::End = member_kind {
-							queued.fir.push(FIR { kind: FIRKind::End });
-							break;
-						} else {
-							return Err(
-								"Expected an identifer for a struct member in struct declaration!".to_string(),
-							);
-						}
-					}
-				}
-				TokenKind::Enum => {
-					let ident_kind = &queued.chunk[queued.cursor].kind;
-					queued.cursor += 1;
-
-					if let TokenKind::Ident(ident) = ident_kind {
-						queued.fir.push(FIR {
-							kind: FIRKind::Enum(ident.clone()),
-						});
-					} else {
-						return Err("Expected an identifier after `enum` keyword.".to_string());
-					}
-
-					loop {
-						if queued.cursor >= queued.chunk.len() {
-							return Err(
-								"Expected `end` to terminate enum declaration but reached EOF!".to_string(),
-							);
-						}
-
-						let variant_kind = &queued.chunk[queued.cursor].kind;
-						queued.cursor += 1;
-
-						if let TokenKind::Ident(variant_ident) = variant_kind {
-							queued.fir.push(FIR {
-								kind: FIRKind::Ident(variant_ident.clone()),
-							});
-						} else if let TokenKind::End = variant_kind {
-							queued.fir.push(FIR { kind: FIRKind::End });
-							break;
-						} else {
-							return Err(
-								"Expected an identifer for an enum variant in struct declaration!".to_string(),
-							);
-						}
-					}
-				}
-				TokenKind::Include => {
-					let path_kind = &queued.chunk[queued.cursor].kind;
-					queued.cursor += 1;
-					if let TokenKind::Str(path) = path_kind {
-						queued.fir.push(FIR {
-							kind: FIRKind::Include(path.clone()),
-						});
-					}
-				}
-
-				// Operators
-				TokenKind::Print => queued.fir.push(FIR {
-					kind: FIRKind::Print,
-				}),
-				TokenKind::Plus => queued.fir.push(FIR {
-					kind: FIRKind::Plus,
-				}),
-				TokenKind::Dash => queued.fir.push(FIR {
-					kind: FIRKind::Dash,
-				}),
-				TokenKind::Star => queued.fir.push(FIR {
-					kind: FIRKind::Star,
-				}),
-				TokenKind::Slash => queued.fir.push(FIR {
-					kind: FIRKind::Slash,
-				}),
-				TokenKind::Eq => queued.fir.push(FIR { kind: FIRKind::Eq }),
-			}
-		}
-
-		Ok(())
-	}
-
-	fn parse_type_signature(&mut self, queued: &mut Queued) -> Result<TypeSignature, String> {
-		let kind = &queued.chunk[queued.cursor].kind;
-		queued.cursor += 1;
-
-		let type_signature = match kind {
-			TokenKind::Ident(type_name) => {
-				if type_name == "bool" {
-					TypeSignature::Bool
-				} else if type_name == "int" {
-					TypeSignature::Int
-				} else if type_name == "str" {
-					TypeSignature::Str
-				} else {
-					return Err(format!(
-						"Type name lookup not yet implemented: `{}`",
-						type_name
-					));
-				}
-			}
-			TokenKind::Star => TypeSignature::Ptr(Box::new(self.parse_type_signature(queued)?)),
-			_ => return Err(format!("Unexpected thingy in type signature `{:?}`", kind)),
-		};
-
-		Ok(type_signature)
-	}
+	Struct(usize),
+	Enum(usize),
 }
