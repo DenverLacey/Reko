@@ -33,6 +33,25 @@ pub fn constant_evaluate(code: parser::IRChunk) -> Result<parser::Constant, Stri
 			DashDash => todo!(),
 
 			// Operators
+			Dup => match stack.last().ok_or("Stack underflow!".to_string())? {
+				parser::Constant::Bool(value) => stack.push(parser::Constant::Bool(*value)),
+				parser::Constant::Int(value) => stack.push(parser::Constant::Int(*value)),
+				parser::Constant::Str(value) => stack.push(parser::Constant::Str(value.clone())),
+			},
+			Over => {
+				if stack.len() < 2 {
+					return Err("Stack underflow!".to_string());
+				}
+
+				match &stack[stack.len() - 2] {
+					parser::Constant::Bool(value) => stack.push(parser::Constant::Bool(*value)),
+					parser::Constant::Int(value) => stack.push(parser::Constant::Int(*value)),
+					parser::Constant::Str(value) => stack.push(parser::Constant::Str(value.clone())),
+				}
+			}
+			Drop => {
+				stack.pop().ok_or("Stack underflow!".to_string())?;
+			}
 			Print => {
 				let value = stack.pop().ok_or("Stack underflow!".to_string())?;
 				match value {

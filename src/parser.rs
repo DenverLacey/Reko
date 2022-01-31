@@ -19,7 +19,9 @@ pub fn parse<'a>(source: Peekable<Chars<'a>>) -> Result<IRChunks, String> {
 
 	for chunk in chunks {
 		let chunk_ir = parser.parse_chunk(chunk)?;
-		ir.push(chunk_ir);
+		if !chunk_ir.is_empty() {
+			ir.push(chunk_ir);
+		}
 	}
 
 	println!("{:#?}", parser);
@@ -177,6 +179,15 @@ impl<'a> Tokenizer<'a> {
 			"--" => Token {
 				kind: TokenKind::DashDash,
 			},
+			"dup" => Token {
+				kind: TokenKind::Dup,
+			},
+			"over" => Token {
+				kind: TokenKind::Over,
+			},
+			"drop" => Token {
+				kind: TokenKind::Drop,
+			},
 			"print" => Token {
 				kind: TokenKind::Print,
 			},
@@ -237,6 +248,9 @@ enum TokenKind {
 	DashDash,
 
 	// Operators
+	Dup,
+	Over,
+	Drop,
 	Print,
 	Plus,
 	Dash,
@@ -418,7 +432,7 @@ impl Parser {
 							kind: IRKind::Call(ident),
 						}),
 						Binding::Struct => todo!(),
-						Binding::Enum => todo!(),
+						// Binding::Enum => todo!(),
 					}
 				}
 				Int(value) => generated.push(IR {
@@ -569,11 +583,11 @@ impl Parser {
 						_ => return Err("Expected an identifier after `enum` keyword!".to_string()),
 					};
 
-					self.bind(ident.clone(), Binding::Enum)?;
+					// self.bind(ident.clone(), Binding::Enum)?;
 
-					generated.push(IR {
-						kind: IRKind::Enum(ident),
-					});
+					// generated.push(IR {
+					// 	kind: IRKind::Enum(ident),
+					// });
 
 					let mut variant_id = 0;
 					loop {
@@ -584,9 +598,15 @@ impl Parser {
 							}) => break,
 							Some(Token {
 								kind: TokenKind::Ident(variant),
-							}) => generated.push(IR {
-								kind: IRKind::EnumVariant(variant, variant_id),
-							}),
+							}) => {
+								self.bind(
+									format!("{}.{}", ident, variant),
+									Binding::Constant(Constant::Int(variant_id)),
+								)?;
+							}
+							// generated.push(IR {
+							// 	kind: IRKind::EnumVariant(variant, variant_id),
+							// }),
 							_ => return Err("Expected identifier of an enum variant!".to_string()),
 						}
 
@@ -606,6 +626,9 @@ impl Parser {
 				}),
 
 				// Operators
+				Dup => generated.push(IR { kind: IRKind::Dup }),
+				Over => generated.push(IR { kind: IRKind::Over }),
+				Drop => generated.push(IR { kind: IRKind::Drop }),
 				Print => generated.push(IR {
 					kind: IRKind::Print,
 				}),
@@ -640,7 +663,7 @@ impl Parser {
 				} else {
 					match self.get_binding(&ident) {
 						Some(Binding::Struct) => Ok(TypeSignature::Struct(ident)),
-						Some(Binding::Enum) => Ok(TypeSignature::Enum(ident)),
+						// Some(Binding::Enum) => Ok(TypeSignature::Enum(ident)),
 						None => Err(format!("Undeclared identifier `{}`", ident)),
 						_ => Err("Invalid type signature!".to_string()),
 					}
@@ -687,7 +710,7 @@ enum Binding {
 	Variable(usize),
 	Function,
 	Struct,
-	Enum,
+	// Enum,
 }
 
 #[derive(Debug)]
@@ -733,6 +756,9 @@ pub enum IRKind {
 	DashDash,
 
 	// Operators
+	Dup,
+	Over,
+	Drop,
 	Print,
 	Add,
 	Subtract,
@@ -749,5 +775,5 @@ pub enum TypeSignature {
 	Str,
 	Ptr(Box<TypeSignature>),
 	Struct(String),
-	Enum(String),
+	// Enum(String),
 }

@@ -40,6 +40,29 @@ enum Direction
 	Right
 end
 
+def Direction.str 
+	int # direction
+	--
+	str
+do
+	if dup Direction.Up = then
+		drop
+		"Up"
+	elif dup Direction.Down = then
+		drop
+		"Down"
+	elif dup Direction.Left = then
+		drop
+		"Left"
+	elif dup Direction.Right = then
+		drop
+		"Right"
+	else
+		drop
+		""
+	end
+end
+
 def main1 do
 	true 5 "Hello" 0 Foo.new
 end
