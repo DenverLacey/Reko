@@ -300,10 +300,6 @@ fn chunkify<'a>(t: &mut Tokenizer<'a>) -> Result<Chunks, String> {
 struct Parser {
 	global: Scope,
 	scopes: Vec<Scope>,
-	next_var_id: usize,
-	next_func_id: usize,
-	next_struct_id: usize,
-	next_enum_id: usize,
 }
 
 impl Parser {
@@ -311,10 +307,6 @@ impl Parser {
 		Self {
 			global: Scope::new(ScopeKind::Global),
 			scopes: Default::default(),
-			next_var_id: 0,
-			next_func_id: 0,
-			next_struct_id: 0,
-			next_enum_id: 0,
 		}
 	}
 
@@ -373,27 +365,21 @@ impl Parser {
 		Ok(())
 	}
 
-	fn bind_constant(&mut self, name: String, constant: Constant) -> Result<(), String> {
-		self.bind(name, Binding::Constant(constant))
-	}
+	// fn bind_constant(&mut self, name: String, constant: Constant) -> Result<(), String> {
+	// 	self.bind(name, Binding::Constant(constant))
+	// }
 
-	fn bind_function(&mut self, name: String) -> Result<(), String> {
-		self.bind(name, Binding::Function(self.next_func_id))?;
-		self.next_func_id += 1;
-		Ok(())
-	}
+	// fn bind_function(&mut self, name: String) -> Result<(), String> {
+	// 	self.bind(name, Binding::Function)
+	// }
 
-	fn bind_struct(&mut self, name: String) -> Result<(), String> {
-		self.bind(name, Binding::Struct(self.next_struct_id))?;
-		self.next_struct_id += 1;
-		Ok(())
-	}
+	// fn bind_struct(&mut self, name: String) -> Result<(), String> {
+	// 	self.bind(name, Binding::Struct)
+	// }
 
-	fn bind_enum(&mut self, name: String) -> Result<(), String> {
-		self.bind(name, Binding::Enum(self.next_enum_id))?;
-		self.next_enum_id += 1;
-		Ok(())
-	}
+	// fn bind_enum(&mut self, name: String) -> Result<(), String> {
+	// 	self.bind(name, Binding::Enum)
+	// }
 }
 
 impl Parser {
@@ -428,11 +414,11 @@ impl Parser {
 							}),
 						},
 						Binding::Variable(id) => todo!(),
-						Binding::Function(id) => generated.push(IR {
-							kind: IRKind::Call(*id),
+						Binding::Function => generated.push(IR {
+							kind: IRKind::Call(ident),
 						}),
-						Binding::Struct(_) => todo!(),
-						Binding::Enum(_) => todo!(),
+						Binding::Struct => todo!(),
+						Binding::Enum => todo!(),
 					}
 				}
 				Int(value) => generated.push(IR {
@@ -498,7 +484,7 @@ impl Parser {
 						_ => return Err("Expected an identifier after `def` keyword!".to_string()),
 					};
 
-					self.bind_function(ident.clone())?;
+					self.bind(ident.clone(), Binding::Function)?;
 
 					generated.push(IR {
 						kind: IRKind::Def(ident),
@@ -541,7 +527,7 @@ impl Parser {
 						_ => return Err("Expected an identifier after `const` keyword!".to_string()),
 					};
 					let value = self.evaluate_constant(&mut iter)?;
-					self.bind_constant(ident, value)?;
+					self.bind(ident, Binding::Constant(value))?;
 				}
 				Struct => {
 					let ident = match iter.next() {
@@ -551,7 +537,7 @@ impl Parser {
 						_ => return Err("Expected an identifier after `struct` keyword!".to_string()),
 					};
 
-					self.bind_struct(ident.clone())?;
+					self.bind(ident.clone(), Binding::Struct)?;
 
 					generated.push(IR {
 						kind: IRKind::Struct(ident),
@@ -583,7 +569,7 @@ impl Parser {
 						_ => return Err("Expected an identifier after `enum` keyword!".to_string()),
 					};
 
-					self.bind_enum(ident.clone())?;
+					self.bind(ident.clone(), Binding::Enum)?;
 
 					generated.push(IR {
 						kind: IRKind::Enum(ident),
@@ -653,8 +639,8 @@ impl Parser {
 					Ok(TypeSignature::Str)
 				} else {
 					match self.get_binding(&ident) {
-						Some(Binding::Struct(id)) => Ok(TypeSignature::Struct(*id)),
-						Some(Binding::Enum(id)) => Ok(TypeSignature::Enum(*id)),
+						Some(Binding::Struct) => Ok(TypeSignature::Struct(ident)),
+						Some(Binding::Enum) => Ok(TypeSignature::Enum(ident)),
 						None => Err(format!("Undeclared identifier `{}`", ident)),
 						_ => Err("Invalid type signature!".to_string()),
 					}
@@ -699,9 +685,9 @@ enum ScopeKind {
 enum Binding {
 	Constant(Constant),
 	Variable(usize),
-	Function(usize),
-	Struct(usize),
-	Enum(usize),
+	Function,
+	Struct,
+	Enum,
 }
 
 #[derive(Debug)]
@@ -753,7 +739,7 @@ pub enum IRKind {
 	Multiply,
 	Divide,
 	Eq,
-	Call(usize),
+	Call(String),
 }
 
 #[derive(Debug)]
@@ -762,6 +748,6 @@ pub enum TypeSignature {
 	Int,
 	Str,
 	Ptr(Box<TypeSignature>),
-	Struct(usize),
-	Enum(usize),
+	Struct(String),
+	Enum(String),
 }

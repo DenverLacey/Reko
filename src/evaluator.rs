@@ -147,7 +147,7 @@ pub fn constant_evaluate(code: parser::IRChunk) -> Result<parser::Constant, Stri
 					}
 				}
 			}
-			Call(id) => todo!(),
+			Call(name) => todo!(),
 		}
 	}
 

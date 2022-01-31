@@ -23,10 +23,10 @@ struct Foo
 end
 
 def Foo.new
-	bool
-	int
-	str
-	* int
+	bool    # activated
+	int     # skeggles
+	str     # name
+	* int   # pointer
 	-- 
 	Foo
 do
