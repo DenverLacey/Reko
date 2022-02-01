@@ -33,8 +33,8 @@ pub struct Program {
 pub enum Instruction {
 	NoOp, // 0. Just to reserve
 
-	PushBool, // 1. (a) -> [value]
-	PushInt,  // 2. (a) -> [value]
+	PushBool, // 1. (a) -> [a]
+	PushInt,  // 2. (a) -> [a]
 	PushStr,  // 3. (size, ptr) -> [size, ptr]
 
 	Dup,  // 4. [-a] -> [a, a]
@@ -53,11 +53,14 @@ pub enum Instruction {
 	Multiply, // 14. [a, b] -> [c]
 	Divide,   // 15. [a, b] -> [c]
 
-	Eq, // 16. [a, b] -> [c]
+	Eq,  // 16. [a, b] -> [c]
+	Neq, // 17. [a, b] -> [c]
+	Lt,  // 18. [a, b] -> [c]
+	Gt,  // 19. [a, b] -> [c]
 
-	Jump,      // 17. (relative jump) -> []
-	JumpTrue,  // 18. (relative jump) [a] -> []
-	JumpFalse, // 19. (relative jump) [a] -> []
+	Jump,      // 20. (relative jump) -> []
+	JumpTrue,  // 21. (relative jump) [a] -> []
+	JumpFalse, // 22. (relative jump) [a] -> []
 }
 
 enum Block {
@@ -233,6 +236,7 @@ pub fn constant_evaluate(code: parser::IRChunk) -> Result<parser::Constant, Stri
 				}
 			}
 			Call(name) => todo!(),
+			_ => todo!(),
 		}
 	}
 
@@ -361,6 +365,21 @@ pub fn evaluate(program: Program) -> Result<(), String> {
 				let b = data_stack.pop().ok_or("Stack underflow!".to_string())?;
 				let a = data_stack.pop().ok_or("Stack underflow!".to_string())?;
 				data_stack.push((a == b) as i64);
+			}
+			Neq => {
+				let b = data_stack.pop().ok_or("Stack underflow!".to_string())?;
+				let a = data_stack.pop().ok_or("Stack underflow!".to_string())?;
+				data_stack.push((a != b) as i64);
+			}
+			Lt => {
+				let b = data_stack.pop().ok_or("Stack underflow!".to_string())?;
+				let a = data_stack.pop().ok_or("Stack underflow!".to_string())?;
+				data_stack.push((a < b) as i64);
+			}
+			Gt => {
+				let b = data_stack.pop().ok_or("Stack underflow!".to_string())?;
+				let a = data_stack.pop().ok_or("Stack underflow!".to_string())?;
+				data_stack.push((a > b) as i64);
 			}
 			Jump => {
 				let jump = program.functions[current_function].code[ip] as i64;

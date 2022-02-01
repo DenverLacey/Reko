@@ -1,0 +1,6 @@
+def main do
+	0 while dup 5 < do
+		dup 1 + print
+		1 +
+	end drop
+end

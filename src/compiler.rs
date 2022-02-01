@@ -157,6 +157,7 @@ impl Compiler {
 	fn patch_jump(&mut self, jump_index: usize) {
 		let current_function_id = self.current_function_id();
 		let current_function = &mut self.program.functions[current_function_id];
+
 		current_function.code[jump_index] = (current_function.code.len() - jump_index - 1) as u64;
 	}
 }
@@ -175,7 +176,7 @@ impl Compiler {
 			If => self.compile_if(rest)?,
 			Elif => return Err("Unexpected `elif`!".to_string()),
 			Else => return Err("Unexpected `else`!".to_string()),
-			While => return Err("Unexpected `while`!".to_string()),
+			While => self.compile_while(rest)?,
 			Let => todo!(),
 			Then => return Err("Unexpected `then`!".to_string()),
 			Do => return Err("Unexpected `do`!".to_string()),
@@ -200,6 +201,9 @@ impl Compiler {
 			Multiply => self.emit_instruction(evaluator::Instruction::Multiply),
 			Divide => self.emit_instruction(evaluator::Instruction::Divide),
 			Eq => self.emit_instruction(evaluator::Instruction::Eq),
+			Neq => self.emit_instruction(evaluator::Instruction::Neq),
+			Lt => self.emit_instruction(evaluator::Instruction::Lt),
+			Gt => self.emit_instruction(evaluator::Instruction::Gt),
 			Call(name) => {
 				let function_id = self
 					.get_function_id(&name)
@@ -283,7 +287,36 @@ impl Compiler {
 	}
 
 	fn compile_while(&mut self, ir: &mut IRIter) -> Result<(), String> {
-		todo!()
+		let while_index = self.program.functions[self.current_function_id()]
+			.code
+			.len();
+		let mut do_index = 0;
+
+		while let Some(i) = ir.next() {
+			use parser::IRKind::*;
+			match i.kind {
+				End => {
+					self.emit_jump(
+						(while_index.wrapping_sub(
+							self.program.functions[self.current_function_id()]
+								.code
+								.len() + 2, // plus 2 because of the jump instruction itself
+						)) as i64,
+					);
+					self.patch_jump(do_index);
+					break;
+				}
+				Do => {
+					self.emit_jump_false(-1);
+					do_index = self.program.functions[self.current_function_id()]
+						.code
+						.len() - 1;
+				}
+				_ => self.compile_expression(i.kind, ir)?,
+			}
+		}
+
+		Ok(())
 	}
 }
 

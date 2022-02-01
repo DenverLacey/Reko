@@ -206,6 +206,15 @@ impl<'a> Tokenizer<'a> {
 			"=" => Token {
 				kind: TokenKind::Eq,
 			},
+			"!=" => Token {
+				kind: TokenKind::Neq,
+			},
+			"<" => Token {
+				kind: TokenKind::Lt,
+			},
+			">" => Token {
+				kind: TokenKind::Gt,
+			},
 			_ => Token {
 				kind: TokenKind::Ident(string),
 			},
@@ -257,6 +266,9 @@ enum TokenKind {
 	Star,
 	Slash,
 	Eq,
+	Neq,
+	Lt,
+	Gt,
 }
 
 type Chunk = Vec<Token>;
@@ -643,6 +655,9 @@ impl Parser {
 					kind: IRKind::Divide,
 				}),
 				Eq => generated.push(IR { kind: IRKind::Eq }),
+				Neq => generated.push(IR { kind: IRKind::Neq }),
+				Lt => generated.push(IR { kind: IRKind::Lt }),
+				Gt => generated.push(IR { kind: IRKind::Gt }),
 			}
 		}
 
@@ -763,6 +778,9 @@ pub enum IRKind {
 	Multiply,
 	Divide,
 	Eq,
+	Neq,
+	Lt,
+	Gt,
 	Call(String),
 }
 
