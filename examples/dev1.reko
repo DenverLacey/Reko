@@ -1,0 +1,8 @@
+def print+1 do
+	1 + print
+end
+
+def main do
+	5 print+1
+	10 print+1
+end

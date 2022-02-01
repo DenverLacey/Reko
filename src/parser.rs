@@ -750,8 +750,6 @@ pub enum IRKind {
 	Var(String),
 	Struct(String),
 	StructMember(String, TypeSignature),
-	Enum(String),
-	EnumVariant(String, usize),
 	Include(String),
 	DashDash,
 
