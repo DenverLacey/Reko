@@ -188,6 +188,9 @@ impl<'a> Tokenizer<'a> {
 			"drop" => Token {
 				kind: TokenKind::Drop,
 			},
+			"swap" => Token {
+				kind: TokenKind::Swap,
+			},
 			"print" => Token {
 				kind: TokenKind::Print,
 			},
@@ -260,6 +263,7 @@ enum TokenKind {
 	Dup,
 	Over,
 	Drop,
+	Swap,
 	Print,
 	Plus,
 	Dash,
@@ -570,6 +574,11 @@ impl Parser {
 					});
 
 					loop {
+						if matches!(iter.peek().map(|t| &t.kind), Some(End)) {
+							iter.next();
+							generated.push(IR { kind: IRKind::End });
+							break;
+						}
 						let field_type = self.parse_type_signature(&mut iter)?;
 						generated.push(IR {
 							kind: IRKind::StructField(field_type),
@@ -630,6 +639,7 @@ impl Parser {
 				Dup => generated.push(IR { kind: IRKind::Dup }),
 				Over => generated.push(IR { kind: IRKind::Over }),
 				Drop => generated.push(IR { kind: IRKind::Drop }),
+				Swap => generated.push(IR { kind: IRKind::Swap }),
 				Print => generated.push(IR {
 					kind: IRKind::Print,
 				}),
@@ -761,6 +771,7 @@ pub enum IRKind {
 	Dup,
 	Over,
 	Drop,
+	Swap,
 	Print,
 	Add,
 	Subtract,

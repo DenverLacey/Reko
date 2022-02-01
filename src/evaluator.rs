@@ -3,16 +3,16 @@ use crate::parser;
 
 #[derive(Debug)]
 pub struct Function {
-	pub parameters: Vec<parser::TypeSignature>,
-	pub returns: Vec<parser::TypeSignature>,
+	// pub parameters: Vec<parser::TypeSignature>,
+	// pub returns: Vec<parser::TypeSignature>,
 	pub code: compiler::Code,
 }
 
 impl Function {
 	pub fn new() -> Self {
 		Self {
-			parameters: Vec::new(),
-			returns: Vec::new(),
+			// parameters: Vec::new(),
+			// returns: Vec::new(),
 			code: compiler::Code::new(),
 		}
 	}
@@ -27,11 +27,11 @@ pub struct Program {
 // Key:
 // () = arguments in the code
 // [] = arguments on the stack
-// -a = peek argument (do not pop)
+// -a = peek argument (doesn't pop)
 //
 #[derive(Debug)]
 pub enum Instruction {
-	NoOp, // 0. Just to reserve
+	NoOp, // 0. Just to reserve 0
 
 	PushBool, // 1. (a) -> [a]
 	PushInt,  // 2. (a) -> [a]
@@ -40,27 +40,28 @@ pub enum Instruction {
 	Dup,  // 4. [-a] -> [a, a]
 	Over, // 5. [-a, -b] -> [a, b, a]
 	Drop, // 6. [a] -> []
+	Swap, // 7. [a, b] -> [b, a]
 
-	PrintBool, // 7. [a] -> []
-	PrintInt,  // 8. [a] -> []
-	PrintStr,  // 9. [size, ptr] -> []
+	PrintBool, // 8. [a] -> []
+	PrintInt,  // 9. [a] -> []
+	PrintStr,  // 10. [size, ptr] -> []
 
-	Call,   // 10. (fid) -> [return values]
-	Return, // 11. [] -> []
+	Call,   // 11. (fid) -> [return values]
+	Return, // 12. [] -> []
 
-	Add,      // 12. [a, b] -> [c]
-	Subtract, // 13. [a, b] -> [c]
-	Multiply, // 14. [a, b] -> [c]
-	Divide,   // 15. [a, b] -> [c]
+	Add,      // 13. [a, b] -> [c]
+	Subtract, // 14. [a, b] -> [c]
+	Multiply, // 15. [a, b] -> [c]
+	Divide,   // 16. [a, b] -> [c]
 
-	Eq,  // 16. [a, b] -> [c]
-	Neq, // 17. [a, b] -> [c]
-	Lt,  // 18. [a, b] -> [c]
-	Gt,  // 19. [a, b] -> [c]
+	Eq,  // 17. [a, b] -> [c]
+	Neq, // 18. [a, b] -> [c]
+	Lt,  // 19. [a, b] -> [c]
+	Gt,  // 20. [a, b] -> [c]
 
-	Jump,      // 20. (relative jump) -> []
-	JumpTrue,  // 21. (relative jump) [a] -> []
-	JumpFalse, // 22. (relative jump) [a] -> []
+	Jump,      // 21. (relative jump) -> []
+	JumpTrue,  // 22. (relative jump) [a] -> []
+	JumpFalse, // 23. (relative jump) [a] -> []
 }
 
 enum Block {
@@ -305,6 +306,12 @@ pub fn evaluate(program: Program) -> Result<(), String> {
 			}
 			Drop => {
 				data_stack.pop().ok_or("Stack underflow!".to_string())?;
+			}
+			Swap => {
+				let a = data_stack.pop().ok_or("Stack underflow!".to_string())?;
+				let b = data_stack.pop().ok_or("Stack underflow!".to_string())?;
+				data_stack.push(a);
+				data_stack.push(b);
 			}
 			PrintBool => {
 				let top = data_stack.pop().ok_or("Stack underflow!".to_string())? != 0;

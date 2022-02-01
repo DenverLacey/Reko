@@ -137,6 +137,21 @@ impl Typer {
 					kind: TypedIRKind::Dup,
 				});
 			}
+			Swap => {
+				let a = self
+					.type_stack()
+					.pop()
+					.ok_or("Cannot `swap` nonexistant data!".to_string())?;
+				let b = self
+					.type_stack()
+					.pop()
+					.ok_or("Cannot `swap` nonexistant data!".to_string())?;
+				self.type_stack().push(a);
+				self.type_stack().push(b);
+				generated.push(TypedIR {
+					kind: TypedIRKind::Swap,
+				});
+			}
 			Print => {
 				let top = self
 					.type_stack()
@@ -445,7 +460,10 @@ impl Typer {
 				.expect("We inserted it before checking the body")
 				.returns
 		{
-			return Err("Function doesn't match its return types".to_string());
+			return Err(format!(
+				"The function `{}` doesn't match its return types",
+				name
+			));
 		}
 
 		self
@@ -496,6 +514,7 @@ impl Typer {
 		while let Some(i) = ir.next() {
 			use parser::IRKind::*;
 			match i.kind {
+				End => break,
 				StructField(ty) => struct_type.field_types.push(ty),
 				_ => unreachable!(),
 			}
@@ -533,10 +552,12 @@ impl FunctionType {
 	}
 }
 
+#[derive(Debug)]
 pub struct TypedIR {
-	kind: TypedIRKind,
+	pub kind: TypedIRKind,
 }
 
+#[derive(Debug)]
 pub enum TypedIRKind {
 	// Literals
 	PushBool(bool),
@@ -560,6 +581,7 @@ pub enum TypedIRKind {
 	Dup,
 	Over,
 	Drop,
+	Swap,
 	PrintBool,
 	PrintInt,
 	PrintStr,

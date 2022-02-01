@@ -13,14 +13,17 @@ fn main() {
 
 	match std::fs::read_to_string(path) {
 		std::io::Result::Ok(source) => match parser::parse(source.chars().peekable()) {
-			Ok(code) => match compiler::compile(code) {
-				Ok(program) => {
-					println!("{:#?}\n---------", program);
-					if let Err(err) = evaluator::evaluate(program) {
-						eprintln!("Error: {}", err);
+			Ok(code) => match typer::typecheck(code) {
+				Ok(typechecked) => match compiler::compile(typechecked) {
+					Ok(program) => {
+						println!("{:#?}\n---------", program);
+						if let Err(err) = evaluator::evaluate(program) {
+							eprintln!("Error: {}", err);
+						}
 					}
-				}
-				Err(err) => eprintln!("Error: {}", err),
+					Err(err) => eprintln!("Error: {}", err),
+				},
+				Err(err) => println!("Error: {}", err),
 			},
 			Err(err) => eprintln!("Error: {}", err),
 		},

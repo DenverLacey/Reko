@@ -10,10 +10,10 @@ end
 #var x MY-CONST 2 *;
 
 struct Foo
-	activated bool
-	skeggles  int
-	name      str
-	pointer   * int
+	bool    # activated
+	int     # skeggles
+	str     # name
+	* int   # pointer
 end
 
 def Foo.new
@@ -57,11 +57,13 @@ do
 	end
 end
 
-def main1 do
+def main1 
+do
 	true 5 "Hello" 0 Foo.new
 end
 
-def main do
+def main 
+do
 	while
 		if 1 1 = then
 			MY-CONST 10 + # This is a comment

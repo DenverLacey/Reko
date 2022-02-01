@@ -1,10 +1,10 @@
 use crate::evaluator;
-use crate::parser;
+use crate::typer;
 use std::collections::HashMap;
 
-type IRIter = <parser::IRChunk as IntoIterator>::IntoIter;
+type IRIter = <typer::TypedChunk as IntoIterator>::IntoIter;
 
-pub fn compile(ir_chunks: parser::IRChunks) -> Result<evaluator::Program, String> {
+pub fn compile(ir_chunks: typer::TypedChunks) -> Result<evaluator::Program, String> {
 	// @NOTE:
 	// We're assumming that we typecheck!
 	//
@@ -14,11 +14,11 @@ pub fn compile(ir_chunks: parser::IRChunks) -> Result<evaluator::Program, String
 	for chunk in ir_chunks {
 		let mut ir = chunk.into_iter();
 		match ir.next().expect("We filter out empty chunks in the parser") {
-			parser::IR {
-				kind: parser::IRKind::Def(ident),
+			typer::TypedIR {
+				kind: typer::TypedIRKind::Def(ident),
 			} => compiler.compile_function(ident.clone(), &mut ir)?,
-			parser::IR {
-				kind: parser::IRKind::Var(_),
+			typer::TypedIR {
+				kind: typer::TypedIRKind::Var(_),
 			} => todo!("Implement compilation of variables at top-level"),
 			_ => unreachable!(),
 		}
@@ -163,8 +163,12 @@ impl Compiler {
 }
 
 impl Compiler {
-	fn compile_expression(&mut self, ir: parser::IRKind, rest: &mut IRIter) -> Result<(), String> {
-		use parser::IRKind::*;
+	fn compile_expression(
+		&mut self,
+		ir: typer::TypedIRKind,
+		rest: &mut IRIter,
+	) -> Result<(), String> {
+		use typer::TypedIRKind::*;
 		match ir {
 			// Literals
 			PushBool(value) => self.emit_push_bool(value),
@@ -182,20 +186,19 @@ impl Compiler {
 			Do => return Err("Unexpected `do`!".to_string()),
 			In => return Err("Unexpected `in`!".to_string()),
 			Def(name) => self.compile_function(name, rest)?,
-			FunctionArgument(_) => unreachable!(),
 			Var(name) => todo!(),
-			Struct(_) => {
-				todo!("In the future this'll probably be handling during type checking anyway")
-			}
-			StructField(_) => unreachable!(),
-			Include(_) => unreachable!(), // This'll eventually be handled in the parser
-			DashDash => unreachable!(),
+			// DashDash => unreachable!(),
 
 			// Operators
 			Dup => self.emit_instruction(evaluator::Instruction::Dup),
 			Over => self.emit_instruction(evaluator::Instruction::Over),
 			Drop => self.emit_instruction(evaluator::Instruction::Drop),
-			Print => self.emit_instruction(evaluator::Instruction::PrintInt), // @HACK: For now we only print ints
+			Swap => self.emit_instruction(evaluator::Instruction::Swap),
+			// Print => self.emit_instruction(evaluator::Instruction::PrintInt), // @HACK: For now we only print ints
+			PrintBool => self.emit_instruction(evaluator::Instruction::PrintBool),
+			PrintInt => self.emit_instruction(evaluator::Instruction::PrintInt),
+			PrintStr => self.emit_instruction(evaluator::Instruction::PrintStr),
+			PrintPtr => todo!(),
 			Add => self.emit_instruction(evaluator::Instruction::Add),
 			Subtract => self.emit_instruction(evaluator::Instruction::Subtract),
 			Multiply => self.emit_instruction(evaluator::Instruction::Multiply),
@@ -218,12 +221,9 @@ impl Compiler {
 		self.add_function(name);
 
 		while let Some(i) = ir.next() {
-			use parser::IRKind::*;
+			use typer::TypedIRKind::*;
 			match i.kind {
 				End => break,
-				Do => {}                                            // @HACK: Just to get things working
-				FunctionArgument(type_signature) => unreachable!(), // @TODO: Do argument handling before hand
-
 				_ => self.compile_expression(i.kind, ir)?,
 			}
 		}
@@ -243,7 +243,7 @@ impl Compiler {
 		let mut exits = Vec::new();
 
 		while let Some(i) = ir.next() {
-			use parser::IRKind::*;
+			use typer::TypedIRKind::*;
 			match i.kind {
 				End => {
 					if let Some(jump_index) = jump_index {
@@ -293,7 +293,7 @@ impl Compiler {
 		let mut do_index = 0;
 
 		while let Some(i) = ir.next() {
-			use parser::IRKind::*;
+			use typer::TypedIRKind::*;
 			match i.kind {
 				End => {
 					self.emit_jump(

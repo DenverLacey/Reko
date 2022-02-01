@@ -11,3 +11,6 @@ Cargo.lock
 
 # Ignore macOS's .DS_Store
 .DS_Store
+
+# Ignore test file
+test.reko
