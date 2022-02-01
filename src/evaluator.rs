@@ -368,18 +368,20 @@ pub fn evaluate(program: Program) -> Result<(), String> {
 				ip = ((ip as i64) + jump) as usize;
 			}
 			JumpTrue => {
+				let jump = program.functions[current_function].code[ip] as i64;
+				ip += 1;
+
 				let should_jump = data_stack.pop().ok_or("Stack underflow!".to_string())? != 0;
 				if should_jump {
-					let jump = program.functions[current_function].code[ip] as i64;
-					ip += 1;
 					ip = ((ip as i64) + jump) as usize;
 				}
 			}
 			JumpFalse => {
+				let jump = program.functions[current_function].code[ip] as i64;
+				ip += 1;
+
 				let should_jump = data_stack.pop().ok_or("Stack underflow!".to_string())? == 0;
 				if should_jump {
-					let jump = program.functions[current_function].code[ip] as i64;
-					ip += 1;
 					ip = ((ip as i64) + jump) as usize;
 				}
 			}

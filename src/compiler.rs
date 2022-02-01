@@ -153,6 +153,12 @@ impl Compiler {
 			.code
 			.push(unsafe { std::mem::transmute::<i64, u64>(jump) });
 	}
+
+	fn patch_jump(&mut self, jump_index: usize) {
+		let current_function_id = self.current_function_id();
+		let current_function = &mut self.program.functions[current_function_id];
+		current_function.code[jump_index] = (current_function.code.len() - jump_index - 1) as u64;
+	}
 }
 
 impl Compiler {
@@ -217,7 +223,87 @@ impl Compiler {
 	}
 
 	fn compile_if(&mut self, ir: &mut IRIter) -> Result<(), String> {
-		todo!()
+		let mut jump_index = Some(0);
+		let mut exits = Vec::new();
+
+		while let Some(i) = ir.next() {
+			use parser::IRKind::*;
+			match i.kind {
+				// Literals
+				PushBool(value) => self.emit_push_bool(value),
+				PushInt(value) => self.emit_push_int(value),
+				PushStr(value) => self.emit_push_str(value),
+
+				// Keywords
+				End => {
+					if let Some(jump_index) = jump_index {
+						self.patch_jump(jump_index);
+					}
+					exits.into_iter().for_each(|index| self.patch_jump(index));
+					break;
+				}
+				If => self.compile_if(ir)?,
+				Elif => {
+					self.emit_jump(-1);
+					exits.push(
+						self.program.functions[self.current_function_id()]
+							.code
+							.len() - 1,
+					);
+					self.patch_jump(jump_index.expect("We should have a jump index!"));
+				}
+				Else => {
+					self.emit_jump(-1);
+					exits.push(
+						self.program.functions[self.current_function_id()]
+							.code
+							.len() - 1,
+					);
+					self.patch_jump(jump_index.expect("We should have a jump index!"));
+					jump_index = None;
+				}
+				While => self.compile_while(ir)?,
+				Let => todo!(),
+				Then => {
+					self.emit_jump_false(-1);
+					jump_index = Some(
+						self.program.functions[self.current_function_id()]
+							.code
+							.len() - 1,
+					);
+				}
+				Do => unreachable!(),
+				In => unreachable!(),
+				Def(name) => self.compile_function(name, ir)?,
+				FunctionArgument(_) => unreachable!(),
+				Var(name) => todo!(),
+				Struct(_) => {
+					todo!("In the future this'll probably be handling during type checking anyway")
+				}
+				StructMember(_, _) => unreachable!(),
+				Include(_) => unreachable!(), // This'll eventually be handled in the parser
+				DashDash => unreachable!(),
+
+				// Operators
+				Dup => self.emit_instruction(evaluator::Instruction::Dup),
+				Over => self.emit_instruction(evaluator::Instruction::Over),
+				Drop => self.emit_instruction(evaluator::Instruction::Drop),
+				Print => self.emit_instruction(evaluator::Instruction::PrintInt), // @HACK: For now we only print ints
+				Add => self.emit_instruction(evaluator::Instruction::Add),
+				Subtract => self.emit_instruction(evaluator::Instruction::Subtract),
+				Multiply => self.emit_instruction(evaluator::Instruction::Multiply),
+				Divide => self.emit_instruction(evaluator::Instruction::Divide),
+				Eq => self.emit_instruction(evaluator::Instruction::Eq),
+				Call(name) => {
+					let function_id = self
+						.get_function_id(&name)
+						.expect(format!("No function named `{}` in function map!", name).as_str());
+					self.emit_call(function_id);
+				}
+			}
+		}
+
+		Ok(())
 	}
 
 	fn compile_while(&mut self, ir: &mut IRIter) -> Result<(), String> {

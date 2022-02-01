@@ -3,6 +3,13 @@ def print+1 do
 end
 
 def main do
-	5 print+1
-	10 print+1
+	2
+		if dup 0 = then
+			100 print
+		elif dup 1 = then
+			200 print
+		else
+			300 print
+		end
+	print+1
 end
