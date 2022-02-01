@@ -162,53 +162,65 @@ impl Compiler {
 }
 
 impl Compiler {
+	fn compile_expression(&mut self, ir: parser::IRKind, rest: &mut IRIter) -> Result<(), String> {
+		use parser::IRKind::*;
+		match ir {
+			// Literals
+			PushBool(value) => self.emit_push_bool(value),
+			PushInt(value) => self.emit_push_int(value),
+			PushStr(value) => self.emit_push_str(value),
+
+			// Keywords
+			End => return Err("Unexpected `end`!".to_string()),
+			If => self.compile_if(rest)?,
+			Elif => return Err("Unexpected `elif`!".to_string()),
+			Else => return Err("Unexpected `else`!".to_string()),
+			While => return Err("Unexpected `while`!".to_string()),
+			Let => todo!(),
+			Then => return Err("Unexpected `then`!".to_string()),
+			Do => return Err("Unexpected `do`!".to_string()),
+			In => return Err("Unexpected `in`!".to_string()),
+			Def(name) => self.compile_function(name, rest)?,
+			FunctionArgument(_) => unreachable!(),
+			Var(name) => todo!(),
+			Struct(_) => {
+				todo!("In the future this'll probably be handling during type checking anyway")
+			}
+			StructMember(_, _) => unreachable!(),
+			Include(_) => unreachable!(), // This'll eventually be handled in the parser
+			DashDash => unreachable!(),
+
+			// Operators
+			Dup => self.emit_instruction(evaluator::Instruction::Dup),
+			Over => self.emit_instruction(evaluator::Instruction::Over),
+			Drop => self.emit_instruction(evaluator::Instruction::Drop),
+			Print => self.emit_instruction(evaluator::Instruction::PrintInt), // @HACK: For now we only print ints
+			Add => self.emit_instruction(evaluator::Instruction::Add),
+			Subtract => self.emit_instruction(evaluator::Instruction::Subtract),
+			Multiply => self.emit_instruction(evaluator::Instruction::Multiply),
+			Divide => self.emit_instruction(evaluator::Instruction::Divide),
+			Eq => self.emit_instruction(evaluator::Instruction::Eq),
+			Call(name) => {
+				let function_id = self
+					.get_function_id(&name)
+					.expect(format!("No function named `{}` in function map!", name).as_str());
+				self.emit_call(function_id);
+			}
+		}
+		Ok(())
+	}
+
 	fn compile_function(&mut self, name: String, ir: &mut IRIter) -> Result<(), String> {
 		self.add_function(name);
 
 		while let Some(i) = ir.next() {
 			use parser::IRKind::*;
 			match i.kind {
-				// Literals
-				PushBool(value) => self.emit_push_bool(value),
-				PushInt(value) => self.emit_push_int(value),
-				PushStr(value) => self.emit_push_str(value),
-
-				// Keywords
 				End => break,
-				If => self.compile_if(ir)?,
-				Elif => unreachable!(),
-				Else => unreachable!(),
-				While => self.compile_while(ir)?,
-				Let => todo!(),
-				Then => unreachable!(),
-				Do => {} // @HACK: Just to get things working: this is for `def func do ...`
-				In => todo!(),
-				Def(name) => self.compile_function(name, ir)?,
+				Do => {}                                            // @HACK: Just to get things working
 				FunctionArgument(type_signature) => unreachable!(), // @TODO: Do argument handling before hand
-				Var(name) => todo!(),
-				Struct(_) => {
-					todo!("In the future this'll probably be handling during type checking anyway")
-				}
-				StructMember(_, _) => unreachable!(),
-				Include(_) => unreachable!(), // This'll eventually be handled in the parser
-				DashDash => unreachable!(),
 
-				// Operators
-				Dup => self.emit_instruction(evaluator::Instruction::Dup),
-				Over => self.emit_instruction(evaluator::Instruction::Over),
-				Drop => self.emit_instruction(evaluator::Instruction::Drop),
-				Print => self.emit_instruction(evaluator::Instruction::PrintInt), // @HACK: For now we only print ints
-				Add => self.emit_instruction(evaluator::Instruction::Add),
-				Subtract => self.emit_instruction(evaluator::Instruction::Subtract),
-				Multiply => self.emit_instruction(evaluator::Instruction::Multiply),
-				Divide => self.emit_instruction(evaluator::Instruction::Divide),
-				Eq => self.emit_instruction(evaluator::Instruction::Eq),
-				Call(name) => {
-					let function_id = self
-						.get_function_id(&name)
-						.expect(format!("No function named `{}` in function map!", name).as_str());
-					self.emit_call(function_id);
-				}
+				_ => self.compile_expression(i.kind, ir)?,
 			}
 		}
 
@@ -229,12 +241,6 @@ impl Compiler {
 		while let Some(i) = ir.next() {
 			use parser::IRKind::*;
 			match i.kind {
-				// Literals
-				PushBool(value) => self.emit_push_bool(value),
-				PushInt(value) => self.emit_push_int(value),
-				PushStr(value) => self.emit_push_str(value),
-
-				// Keywords
 				End => {
 					if let Some(jump_index) = jump_index {
 						self.patch_jump(jump_index);
@@ -242,7 +248,6 @@ impl Compiler {
 					exits.into_iter().for_each(|index| self.patch_jump(index));
 					break;
 				}
-				If => self.compile_if(ir)?,
 				Elif => {
 					self.emit_jump(-1);
 					exits.push(
@@ -262,8 +267,6 @@ impl Compiler {
 					self.patch_jump(jump_index.expect("We should have a jump index!"));
 					jump_index = None;
 				}
-				While => self.compile_while(ir)?,
-				Let => todo!(),
 				Then => {
 					self.emit_jump_false(-1);
 					jump_index = Some(
@@ -272,34 +275,7 @@ impl Compiler {
 							.len() - 1,
 					);
 				}
-				Do => unreachable!(),
-				In => unreachable!(),
-				Def(name) => self.compile_function(name, ir)?,
-				FunctionArgument(_) => unreachable!(),
-				Var(name) => todo!(),
-				Struct(_) => {
-					todo!("In the future this'll probably be handling during type checking anyway")
-				}
-				StructMember(_, _) => unreachable!(),
-				Include(_) => unreachable!(), // This'll eventually be handled in the parser
-				DashDash => unreachable!(),
-
-				// Operators
-				Dup => self.emit_instruction(evaluator::Instruction::Dup),
-				Over => self.emit_instruction(evaluator::Instruction::Over),
-				Drop => self.emit_instruction(evaluator::Instruction::Drop),
-				Print => self.emit_instruction(evaluator::Instruction::PrintInt), // @HACK: For now we only print ints
-				Add => self.emit_instruction(evaluator::Instruction::Add),
-				Subtract => self.emit_instruction(evaluator::Instruction::Subtract),
-				Multiply => self.emit_instruction(evaluator::Instruction::Multiply),
-				Divide => self.emit_instruction(evaluator::Instruction::Divide),
-				Eq => self.emit_instruction(evaluator::Instruction::Eq),
-				Call(name) => {
-					let function_id = self
-						.get_function_id(&name)
-						.expect(format!("No function named `{}` in function map!", name).as_str());
-					self.emit_call(function_id);
-				}
+				_ => self.compile_expression(i.kind, ir)?,
 			}
 		}
 

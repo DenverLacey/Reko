@@ -3,7 +3,7 @@ def print+1 do
 end
 
 def main do
-	2
+	0
 		if dup 0 = then
 			100 print
 		elif dup 1 = then
