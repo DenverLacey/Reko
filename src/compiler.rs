@@ -187,7 +187,7 @@ impl Compiler {
 			Struct(_) => {
 				todo!("In the future this'll probably be handling during type checking anyway")
 			}
-			StructMember(_, _) => unreachable!(),
+			StructField(_) => unreachable!(),
 			Include(_) => unreachable!(), // This'll eventually be handled in the parser
 			DashDash => unreachable!(),
 

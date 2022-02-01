@@ -97,7 +97,7 @@ pub fn constant_evaluate(code: parser::IRChunk) -> Result<parser::Constant, Stri
 			FunctionArgument(ty) => todo!(),
 			Var(name) => todo!(),
 			Struct(name) => todo!(),
-			StructMember(name, ty) => todo!(),
+			StructField(ty) => todo!(),
 			Include(path) => todo!(),
 			DashDash => todo!(),
 

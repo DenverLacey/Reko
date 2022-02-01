@@ -1,9 +1,10 @@
 mod compiler;
 mod evaluator;
 mod parser;
+mod typer;
 
 fn main() {
-	let mut path = if let Some(path) = std::env::args().skip(1).next() {
+	let path = if let Some(path) = std::env::args().skip(1).next() {
 		path
 	} else {
 		eprintln!("Error: Filepath to reko source file not provided!");
@@ -15,7 +16,9 @@ fn main() {
 			Ok(code) => match compiler::compile(code) {
 				Ok(program) => {
 					println!("{:#?}\n---------", program);
-					evaluator::evaluate(program);
+					if let Err(err) = evaluator::evaluate(program) {
+						eprintln!("Error: {}", err);
+					}
 				}
 				Err(err) => eprintln!("Error: {}", err),
 			},

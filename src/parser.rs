@@ -570,21 +570,10 @@ impl Parser {
 					});
 
 					loop {
-						match iter.next() {
-							None => return Err("Unexpected EOF while parsing struct!".to_string()),
-							Some(Token {
-								kind: TokenKind::End,
-							}) => break,
-							Some(Token {
-								kind: TokenKind::Ident(ident),
-							}) => {
-								let type_signature = self.parse_type_signature(&mut iter)?;
-								generated.push(IR {
-									kind: IRKind::StructMember(ident, type_signature),
-								});
-							}
-							_ => return Err("Expected identifier of a struct field!".to_string()),
-						}
+						let field_type = self.parse_type_signature(&mut iter)?;
+						generated.push(IR {
+							kind: IRKind::StructField(field_type),
+						});
 					}
 				}
 				Enum => {
@@ -764,7 +753,7 @@ pub enum IRKind {
 	FunctionArgument(TypeSignature),
 	Var(String),
 	Struct(String),
-	StructMember(String, TypeSignature),
+	StructField(TypeSignature),
 	Include(String),
 	DashDash,
 
@@ -784,7 +773,7 @@ pub enum IRKind {
 	Call(String),
 }
 
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub enum TypeSignature {
 	Bool,
 	Int,
@@ -793,3 +782,24 @@ pub enum TypeSignature {
 	Struct(String),
 	// Enum(String),
 }
+
+impl std::cmp::PartialEq for TypeSignature {
+	fn eq(&self, other: &Self) -> bool {
+		use TypeSignature::*;
+		match self {
+			Bool => matches!(other, Bool),
+			Int => matches!(other, Int),
+			Str => matches!(other, Str),
+			Ptr(inner) => match other {
+				Ptr(other_inner) => inner.as_ref() == other_inner.as_ref(),
+				_ => false,
+			},
+			Struct(inner_name) => match other {
+				Struct(other_name) => inner_name == other_name, // @HACK: This works cause we don't allow duplicate identifiers
+				_ => false,
+			},
+		}
+	}
+}
+
+impl std::cmp::Eq for TypeSignature {}
