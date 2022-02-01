@@ -11,24 +11,17 @@ fn main() {
 		return;
 	};
 
-	match std::fs::read_to_string(path) {
-		std::io::Result::Ok(source) => match parser::parse(source.chars().peekable()) {
-			Ok(code) => match typer::typecheck(code) {
-				Ok(typechecked) => match compiler::compile(typechecked) {
-					Ok(program) => {
-						println!("{:#?}\n---------", program);
-						if let Err(err) = evaluator::evaluate(program) {
-							eprintln!("Error: {}", err);
-						}
-					}
-					Err(err) => eprintln!("Error: {}", err),
-				},
-				Err(err) => println!("Error: {}", err),
-			},
-			Err(err) => eprintln!("Error: {}", err),
-		},
-		std::io::Result::Err(err) => {
-			eprintln!("Error: {}", err);
-		}
+	if let Err(err) = interpret(path) {
+		eprintln!("Error: {}", err);
 	}
+}
+
+fn interpret(path: String) -> Result<(), String> {
+	let source = std::fs::read_to_string(path).or_else(|err| Err(format!("{}", err)))?;
+	let code = parser::parse(source.chars().peekable())?;
+	let typechecked = typer::typecheck(code)?;
+	let program = compiler::compile(typechecked)?;
+	println!("{:#?}\n---------", program);
+	evaluator::evaluate(program)?;
+	Ok(())
 }
