@@ -24,6 +24,8 @@ pub fn compile(ir_chunks: typer::TypedChunks) -> Result<evaluator::Program, Stri
 		}
 	}
 
+	println!("{:#?}\n---------", compiler.program);
+
 	Ok(compiler.program)
 }
 

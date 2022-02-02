@@ -12,6 +12,5 @@ def main
 do
 	3 2
 		1 foo +
-			addmull
-	print
+	addmull print
 end

@@ -1,5 +1,5 @@
 use crate::compiler;
-use crate::parser;
+// use crate::parser;
 
 #[derive(Debug)]
 pub struct Function {
@@ -31,11 +31,11 @@ pub struct Program {
 //
 #[derive(Debug)]
 pub enum Instruction {
-	NoOp, // 0. Just to reserve 0
+	_NoOp, // 0. Just to reserve 0
 
 	PushBool, // 1. (a) -> [a]
 	PushInt,  // 2. (a) -> [a]
-	PushStr,  // 3. (size, ptr) -> [size, ptr]
+	PushStr,  // 3. (index in string table) -> [size, ptr]
 
 	Dup,  // 4. [-a] -> [a, a]
 	Over, // 5. [-a, -b] -> [a, b, a]
@@ -64,191 +64,186 @@ pub enum Instruction {
 	JumpFalse, // 23. (relative jump) [a] -> []
 }
 
-enum Block {
-	If(usize),
-	While(usize),
-}
+// pub fn constant_evaluate(code: parser::IRChunk) -> Result<parser::Constant, String> {
+// 	let mut stack = Vec::new();
+// 	let mut block_stack = Vec::new();
 
-pub fn constant_evaluate(code: parser::IRChunk) -> Result<parser::Constant, String> {
-	let mut stack = Vec::new();
-	let mut block_stack = Vec::new();
+// 	let mut ip = 0;
+// 	while ip < code.len() {
+// 		let instruction = &code[ip];
 
-	let mut ip = 0;
-	while ip < code.len() {
-		let instruction = &code[ip];
+// 		use parser::IRKind::*;
+// 		match &instruction.kind {
+// 			// Literals
+// 			PushBool(value) => stack.push(parser::Constant::Bool(*value)),
+// 			PushInt(value) => stack.push(parser::Constant::Int(*value)),
+// 			PushStr(value) => stack.push(parser::Constant::Str(value.clone())),
 
-		use parser::IRKind::*;
-		match &instruction.kind {
-			// Literals
-			PushBool(value) => stack.push(parser::Constant::Bool(*value)),
-			PushInt(value) => stack.push(parser::Constant::Int(*value)),
-			PushStr(value) => stack.push(parser::Constant::Str(value.clone())),
+// 			// Keywords
+// 			End => todo!(),
+// 			If => todo!(),
+// 			Elif => todo!(),
+// 			Else => todo!(),
+// 			While => block_stack.push(Block::While(ip)),
+// 			Let => todo!(),
+// 			Then => todo!(),
+// 			Do => todo!(),
+// 			In => todo!(),
+// 			Def(name) => todo!(),
+// 			FunctionArgument(ty) => todo!(),
+// 			Var(name) => todo!(),
+// 			Struct(name) => todo!(),
+// 			StructField(ty) => todo!(),
+// 			Include(path) => todo!(),
+// 			DashDash => todo!(),
 
-			// Keywords
-			End => todo!(),
-			If => todo!(),
-			Elif => todo!(),
-			Else => todo!(),
-			While => block_stack.push(Block::While(ip)),
-			Let => todo!(),
-			Then => todo!(),
-			Do => todo!(),
-			In => todo!(),
-			Def(name) => todo!(),
-			FunctionArgument(ty) => todo!(),
-			Var(name) => todo!(),
-			Struct(name) => todo!(),
-			StructField(ty) => todo!(),
-			Include(path) => todo!(),
-			DashDash => todo!(),
+// 			// Operators
+// 			Dup => match stack.last().ok_or("Stack underflow!".to_string())? {
+// 				parser::Constant::Bool(value) => stack.push(parser::Constant::Bool(*value)),
+// 				parser::Constant::Int(value) => stack.push(parser::Constant::Int(*value)),
+// 				parser::Constant::Str(value) => stack.push(parser::Constant::Str(value.clone())),
+// 			},
+// 			Over => {
+// 				if stack.len() < 2 {
+// 					return Err("Stack underflow!".to_string());
+// 				}
 
-			// Operators
-			Dup => match stack.last().ok_or("Stack underflow!".to_string())? {
-				parser::Constant::Bool(value) => stack.push(parser::Constant::Bool(*value)),
-				parser::Constant::Int(value) => stack.push(parser::Constant::Int(*value)),
-				parser::Constant::Str(value) => stack.push(parser::Constant::Str(value.clone())),
-			},
-			Over => {
-				if stack.len() < 2 {
-					return Err("Stack underflow!".to_string());
-				}
+// 				match &stack[stack.len() - 2] {
+// 					parser::Constant::Bool(value) => stack.push(parser::Constant::Bool(*value)),
+// 					parser::Constant::Int(value) => stack.push(parser::Constant::Int(*value)),
+// 					parser::Constant::Str(value) => stack.push(parser::Constant::Str(value.clone())),
+// 				}
+// 			}
+// 			Drop => {
+// 				stack.pop().ok_or("Stack underflow!".to_string())?;
+// 			}
+// 			Print => {
+// 				let value = stack.pop().ok_or("Stack underflow!".to_string())?;
+// 				match value {
+// 					parser::Constant::Bool(value) => println!("{}", value),
+// 					parser::Constant::Int(value) => println!("{}", value),
+// 					parser::Constant::Str(value) => println!("{}", value),
+// 				}
+// 			}
+// 			Add => {
+// 				let a = stack.pop().ok_or("Stack underflow!".to_string())?;
+// 				let b = stack.pop().ok_or("Stack underflow!".to_string())?;
 
-				match &stack[stack.len() - 2] {
-					parser::Constant::Bool(value) => stack.push(parser::Constant::Bool(*value)),
-					parser::Constant::Int(value) => stack.push(parser::Constant::Int(*value)),
-					parser::Constant::Str(value) => stack.push(parser::Constant::Str(value.clone())),
-				}
-			}
-			Drop => {
-				stack.pop().ok_or("Stack underflow!".to_string())?;
-			}
-			Print => {
-				let value = stack.pop().ok_or("Stack underflow!".to_string())?;
-				match value {
-					parser::Constant::Bool(value) => println!("{}", value),
-					parser::Constant::Int(value) => println!("{}", value),
-					parser::Constant::Str(value) => println!("{}", value),
-				}
-			}
-			Add => {
-				let a = stack.pop().ok_or("Stack underflow!".to_string())?;
-				let b = stack.pop().ok_or("Stack underflow!".to_string())?;
+// 				let a = if let parser::Constant::Int(x) = a {
+// 					x
+// 				} else {
+// 					return Err("Addition is only an integer operation!".to_string());
+// 				};
 
-				let a = if let parser::Constant::Int(x) = a {
-					x
-				} else {
-					return Err("Addition is only an integer operation!".to_string());
-				};
+// 				let b = if let parser::Constant::Int(x) = b {
+// 					x
+// 				} else {
+// 					return Err("Addition is only an integer operation!".to_string());
+// 				};
 
-				let b = if let parser::Constant::Int(x) = b {
-					x
-				} else {
-					return Err("Addition is only an integer operation!".to_string());
-				};
+// 				stack.push(parser::Constant::Int(a + b));
+// 			}
+// 			Subtract => {
+// 				let a = stack.pop().ok_or("Stack underflow!".to_string())?;
+// 				let b = stack.pop().ok_or("Stack underflow!".to_string())?;
 
-				stack.push(parser::Constant::Int(a + b));
-			}
-			Subtract => {
-				let a = stack.pop().ok_or("Stack underflow!".to_string())?;
-				let b = stack.pop().ok_or("Stack underflow!".to_string())?;
+// 				let a = if let parser::Constant::Int(x) = a {
+// 					x
+// 				} else {
+// 					return Err("Subtraction is only an integer operation!".to_string());
+// 				};
 
-				let a = if let parser::Constant::Int(x) = a {
-					x
-				} else {
-					return Err("Subtraction is only an integer operation!".to_string());
-				};
+// 				let b = if let parser::Constant::Int(x) = b {
+// 					x
+// 				} else {
+// 					return Err("Subtraction is only an integer operation!".to_string());
+// 				};
 
-				let b = if let parser::Constant::Int(x) = b {
-					x
-				} else {
-					return Err("Subtraction is only an integer operation!".to_string());
-				};
+// 				stack.push(parser::Constant::Int(a - b));
+// 			}
+// 			Multiply => {
+// 				let a = stack.pop().ok_or("Stack underflow!".to_string())?;
+// 				let b = stack.pop().ok_or("Stack underflow!".to_string())?;
 
-				stack.push(parser::Constant::Int(a - b));
-			}
-			Multiply => {
-				let a = stack.pop().ok_or("Stack underflow!".to_string())?;
-				let b = stack.pop().ok_or("Stack underflow!".to_string())?;
+// 				let a = if let parser::Constant::Int(x) = a {
+// 					x
+// 				} else {
+// 					return Err("Multiplication is only an integer operation!".to_string());
+// 				};
 
-				let a = if let parser::Constant::Int(x) = a {
-					x
-				} else {
-					return Err("Multiplication is only an integer operation!".to_string());
-				};
+// 				let b = if let parser::Constant::Int(x) = b {
+// 					x
+// 				} else {
+// 					return Err("Multiplication is only an integer operation!".to_string());
+// 				};
 
-				let b = if let parser::Constant::Int(x) = b {
-					x
-				} else {
-					return Err("Multiplication is only an integer operation!".to_string());
-				};
+// 				stack.push(parser::Constant::Int(a * b));
+// 			}
+// 			Divide => {
+// 				let a = stack.pop().ok_or("Stack underflow!".to_string())?;
+// 				let b = stack.pop().ok_or("Stack underflow!".to_string())?;
 
-				stack.push(parser::Constant::Int(a * b));
-			}
-			Divide => {
-				let a = stack.pop().ok_or("Stack underflow!".to_string())?;
-				let b = stack.pop().ok_or("Stack underflow!".to_string())?;
+// 				let a = if let parser::Constant::Int(x) = a {
+// 					x
+// 				} else {
+// 					return Err("Division is only an integer operation!".to_string());
+// 				};
 
-				let a = if let parser::Constant::Int(x) = a {
-					x
-				} else {
-					return Err("Division is only an integer operation!".to_string());
-				};
+// 				let b = if let parser::Constant::Int(x) = b {
+// 					x
+// 				} else {
+// 					return Err("Division is only an integer operation!".to_string());
+// 				};
 
-				let b = if let parser::Constant::Int(x) = b {
-					x
-				} else {
-					return Err("Division is only an integer operation!".to_string());
-				};
+// 				stack.push(parser::Constant::Int(a / b));
+// 			}
+// 			Eq => {
+// 				let a = stack.pop().ok_or("Stack underflow!".to_string())?;
+// 				let b = stack.pop().ok_or("Stack underflow!".to_string())?;
 
-				stack.push(parser::Constant::Int(a / b));
-			}
-			Eq => {
-				let a = stack.pop().ok_or("Stack underflow!".to_string())?;
-				let b = stack.pop().ok_or("Stack underflow!".to_string())?;
+// 				match a {
+// 					parser::Constant::Bool(a) => {
+// 						if let parser::Constant::Bool(b) = b {
+// 							stack.push(parser::Constant::Bool(a == b));
+// 						} else {
+// 							return Err(
+// 								"Cannot evaluate equality between values of different types!".to_string(),
+// 							);
+// 						}
+// 					}
+// 					parser::Constant::Int(a) => {
+// 						if let parser::Constant::Int(b) = b {
+// 							stack.push(parser::Constant::Bool(a == b));
+// 						} else {
+// 							return Err(
+// 								"Cannot evaluate equality between values of different types!".to_string(),
+// 							);
+// 						}
+// 					}
+// 					parser::Constant::Str(a) => {
+// 						if let parser::Constant::Str(b) = b {
+// 							stack.push(parser::Constant::Bool(a == b));
+// 						} else {
+// 							return Err(
+// 								"Cannot evaluate equality between values of different types!".to_string(),
+// 							);
+// 						}
+// 					}
+// 				}
+// 			}
+// 			Call(name) => todo!(),
+// 			_ => todo!(),
+// 		}
+// 	}
 
-				match a {
-					parser::Constant::Bool(a) => {
-						if let parser::Constant::Bool(b) = b {
-							stack.push(parser::Constant::Bool(a == b));
-						} else {
-							return Err(
-								"Cannot evaluate equality between values of different types!".to_string(),
-							);
-						}
-					}
-					parser::Constant::Int(a) => {
-						if let parser::Constant::Int(b) = b {
-							stack.push(parser::Constant::Bool(a == b));
-						} else {
-							return Err(
-								"Cannot evaluate equality between values of different types!".to_string(),
-							);
-						}
-					}
-					parser::Constant::Str(a) => {
-						if let parser::Constant::Str(b) = b {
-							stack.push(parser::Constant::Bool(a == b));
-						} else {
-							return Err(
-								"Cannot evaluate equality between values of different types!".to_string(),
-							);
-						}
-					}
-				}
-			}
-			Call(name) => todo!(),
-			_ => todo!(),
-		}
-	}
+// 	if stack.len() > 1 {
+// 		return Err("Unhandled data in constant evaluation!".to_string());
+// 	}
 
-	if stack.len() > 1 {
-		return Err("Unhandled data in constant evaluation!".to_string());
-	}
-
-	stack
-		.pop()
-		.ok_or("Code does not evaluate to any value!".to_string())
-}
+// 	stack
+// 		.pop()
+// 		.ok_or("Code does not evaluate to any value!".to_string())
+// }
 
 pub fn evaluate(program: Program) -> Result<(), String> {
 	let mut current_function = program.entry_index;
@@ -265,7 +260,7 @@ pub fn evaluate(program: Program) -> Result<(), String> {
 
 		use Instruction::*;
 		match instruction {
-			NoOp => panic!("Hit a no-op during evaluation!"),
+			_NoOp => panic!("Hit a no-op during evaluation!"),
 
 			PushBool => {
 				let value: i64 =

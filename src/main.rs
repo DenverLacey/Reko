@@ -18,15 +18,9 @@ fn main() {
 
 fn interpret(path: String) -> Result<(), String> {
 	let source = std::fs::read_to_string(path).or_else(|err| Err(format!("{}", err)))?;
-
 	let code = parser::parse(source.chars().peekable())?;
-
 	let typechecked = typer::typecheck(code)?;
-	println!("{:#?}", typechecked);
-
 	let program = compiler::compile(typechecked)?;
-	println!("{:#?}\n---------", program);
-
 	evaluator::evaluate(program)?;
 	Ok(())
 }

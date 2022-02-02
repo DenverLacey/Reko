@@ -2,7 +2,7 @@ use std::collections::HashMap;
 use std::iter::Peekable;
 use std::str::Chars;
 
-use crate::evaluator;
+// use crate::evaluator;
 
 // @TODO:
 // Implement out-of-order compilation.
@@ -367,16 +367,18 @@ impl Parser {
 		// @TODO:
 		// Actually evaluate the constant
 		//
-		let mut constant_chunk = Chunk::new();
-		while let Some(t) = tokens.next() {
-			if matches!(t.kind, TokenKind::End) {
-				break;
-			}
-			constant_chunk.push(t);
-		}
+		// let mut constant_chunk = Chunk::new();
+		// while let Some(t) = tokens.next() {
+		// 	if matches!(t.kind, TokenKind::End) {
+		// 		break;
+		// 	}
+		// 	constant_chunk.push(t);
+		// }
 
-		let constant_ir = self.parse_chunk(constant_chunk)?;
-		evaluator::constant_evaluate(constant_ir)
+		// let constant_ir = self.parse_chunk(constant_chunk)?;
+		// evaluator::constant_evaluate(constant_ir)
+
+		Ok(Constant::Int(69420))
 	}
 
 	fn bind(&mut self, name: String, binding: Binding) -> Result<(), String> {
@@ -714,7 +716,6 @@ enum ScopeKind {
 	Global,
 	Def,
 	If,
-	Elif,
 	Else,
 }
 

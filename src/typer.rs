@@ -15,6 +15,8 @@ pub fn typecheck(ir_chunks: parser::IRChunks) -> Result<TypedChunks, String> {
 			typechecked.push(typed);
 		}
 	}
+	
+	println!("{:#?}", typechecked);
 
 	Ok(typechecked)
 }
@@ -139,7 +141,7 @@ impl Typer {
 					.pop()
 					.ok_or("Cannot `drop` nonexistant data!".to_string())?;
 				generated.push(TypedIR {
-					kind: TypedIRKind::Dup,
+					kind: TypedIRKind::Drop,
 				});
 			}
 			Swap => {
@@ -268,7 +270,7 @@ impl Typer {
 				self.type_stack().push(parser::TypeSignature::Int);
 
 				generated.push(TypedIR {
-					kind: TypedIRKind::Multiply,
+					kind: TypedIRKind::Divide,
 				});
 			}
 			Eq => {
@@ -375,7 +377,12 @@ impl Typer {
 					.expect("We should have a type stack")
 					.ends_with(function_type.parameters.as_slice())
 				{
-					return Err(format!("Incorrect types for call to `{}`", name));
+					return Err(format!(
+						"Incorrect types for call to `{}`! Stack: {:?}. Parameters: {:?}", 
+						name, 
+						self.type_stacks.last().expect("We should have a type stack"), 
+						function_type.parameters
+					));
 				}
 
 				let type_stack_len = self
@@ -383,7 +390,6 @@ impl Typer {
 					.last()
 					.expect("We should have a type stack")
 					.len();
-
 				self
 					.type_stacks
 					.last_mut()
@@ -466,8 +472,10 @@ impl Typer {
 				.returns
 		{
 			return Err(format!(
-				"The function `{}` doesn't match its return types",
-				name
+				"The function `{}` doesn't match its return types! Expected: {:?} vs. Actual {:?}",
+				name,
+				self.functions.get(&name).expect("We inserted it before checking the body").returns,
+				self.type_stacks.last().expect("We should have a type stack"),
 			));
 		}
 
