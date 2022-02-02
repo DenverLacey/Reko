@@ -489,7 +489,6 @@ impl Typer {
 
 		while let Some(i) = ir.next() {
 			use parser::IRKind::*;
-			println!("{:?}", i.kind);
 			match i.kind {
 				Then => {
 					let top = self
@@ -566,14 +565,8 @@ impl Typer {
 
 					break;
 				}
-				_ => {
-					let kind = format!("{:?}", i.kind);
-					self.typecheck_expression(generated, i.kind, ir)?;
-					println!("After {}: {:?}", kind, self.type_stack());
-				}
+				_ => self.typecheck_expression(generated, i.kind, ir)?,
 			}
-
-			println!();
 		}
 
 		Ok(())
