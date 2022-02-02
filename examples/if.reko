@@ -8,5 +8,5 @@ do
 		else
 			300 print
 		end
-	print+1
+	print
 end

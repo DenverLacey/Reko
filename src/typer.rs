@@ -22,6 +22,11 @@ pub fn typecheck(ir_chunks: parser::IRChunks) -> Result<TypedChunks, String> {
 struct Typer {
 	structs: HashMap<String, StructType>,
 	functions: HashMap<String, FunctionType>,
+
+	// @NOTE:
+	// This might be better for this to be a Vec<LinkedList<TypeSignature>>
+	// because of the better memory efficiency for branching expressions like `if` and `while`
+	//
 	type_stacks: Vec<Vec<parser::TypeSignature>>,
 }
 
@@ -475,16 +480,121 @@ impl Typer {
 	}
 
 	fn typecheck_if(&mut self, generated: &mut TypedChunk, ir: &mut IRIter) -> Result<(), String> {
-		todo!();
+		let type_stack_before_if = self.type_stack().clone();
+		let mut type_stack_before_branch = None::<Vec<parser::TypeSignature>>;
+
+		generated.push(TypedIR {
+			kind: TypedIRKind::If,
+		});
+
+		while let Some(i) = ir.next() {
+			use parser::IRKind::*;
+			println!("{:?}", i.kind);
+			match i.kind {
+				Then => {
+					let top = self
+						.type_stack()
+						.pop()
+						.ok_or("No value on stack for condition of `if` expression!".to_string())?;
+					if top != parser::TypeSignature::Bool {
+						return Err(format!(
+							"Type on stack for condition of `if` expression should be {:?} but found {:?}",
+							parser::TypeSignature::Bool,
+							top,
+						));
+					}
+					generated.push(TypedIR {
+						kind: TypedIRKind::Then,
+					});
+				}
+				Elif => {
+					if let Some(type_stack_branch) = &type_stack_before_branch {
+						if self.type_stack() != type_stack_branch {
+							return Err(format!(
+								"A branch of `if` expression returns different types to other branches! Expected: {:?} vs. Actual: {:?}", 
+								type_stack_before_branch, 
+								self.type_stack(),
+							));
+						}
+					} else {
+						type_stack_before_branch = Some(self.type_stack().clone());
+					}
+
+					generated.push(TypedIR {
+						kind: TypedIRKind::Elif,
+					});
+				}
+				Else => {
+					if let Some(type_stack_branch) = &type_stack_before_branch {
+						if self.type_stack() != type_stack_branch {
+							return Err(format!(
+								"A branch of `if` expression returns different types to other branches! Expected: {:?} vs. Actual: {:?}", 
+								type_stack_before_branch, 
+								self.type_stack(),
+							));
+						}
+					} else {
+						type_stack_before_branch = Some(self.type_stack().clone());
+					}
+
+					generated.push(TypedIR {
+						kind: TypedIRKind::Else,
+					});
+				}
+				End => {
+					if let Some(type_stack_before_branch) = &type_stack_before_branch {
+						if self.type_stack() != type_stack_before_branch {
+							return Err(format!(
+								"A branch of `if` expression returns different types to other branches! Expected: {:?} vs. Actual: {:?}", 
+								type_stack_before_branch, 
+								self.type_stack(),
+							));
+						}
+					} else {
+						if *self.type_stack() != type_stack_before_if {
+							return Err(format!(
+								"`if` expression ends with altered type stack! Before: {:?} vs. After: {:?}",
+								type_stack_before_if,
+								self.type_stack(),
+							));
+						}
+					}
+
+					generated.push(TypedIR {
+						kind: TypedIRKind::End,
+					});
+
+					break;
+				}
+				_ => {
+					let kind = format!("{:?}", i.kind);
+					self.typecheck_expression(generated, i.kind, ir)?;
+					println!("After {}: {:?}", kind, self.type_stack());
+				}
+			}
+
+			println!();
+		}
+
+		Ok(())
 	}
 
 	fn typecheck_while(&mut self, generated: &mut TypedChunk, ir: &mut IRIter) -> Result<(), String> {
 		let type_stack_before_loop = self.type_stack().clone();
 
+		generated.push(TypedIR {
+			kind: TypedIRKind::While,
+		});
+
 		while let Some(i) = ir.next() {
 			use parser::IRKind::*;
 			match i.kind {
-				End => break,
+				End => {
+					generated.push(TypedIR {
+						kind: TypedIRKind::End,
+					});
+					break;
+				}
 				Do => {
 					let condition = self
 						.type_stack()
@@ -496,13 +606,21 @@ impl Typer {
 							condition
 						));
 					}
+
+					generated.push(TypedIR {
+						kind: TypedIRKind::Do,
+					});
 				}
 				_ => self.typecheck_expression(generated, i.kind, ir)?,
 			}
 		}
 
 		if type_stack_before_loop != *self.type_stack() {
-			return Err("`while` loop ends with altered type stack!".to_string());
+			return Err(format!(
+				"`while` loop ends with altered type stack! Expected: {:?} vs. Actual: {:?}", 
+				type_stack_before_loop, 
+				self.type_stack()
+			));
 		}
 
 		Ok(())

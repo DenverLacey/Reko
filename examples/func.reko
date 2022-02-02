@@ -1,0 +1,17 @@
+def foo int -- int int
+do
+	dup dup +
+end
+
+def addmull int int int -- int
+do
+	+ *
+end
+
+def main
+do
+	3 2
+		1 foo +
+			addmull
+	print
+end
