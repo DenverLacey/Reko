@@ -1,11 +1,23 @@
-def greet 
-	str # name
+struct Person
+	str # firstname
+	str # lastname
+end
+
+def announce 
+	Person
 do
-	"Hello there..." print
-	print
+	let fn fs ln ls in
+		"A Person!" print
+		
+		"Firstname of..." print
+		fn fs print
+
+		"Lastname of..." print
+		ln ls print
+	end
 end
 
 def main
 do
-	"Zenitsu" greet
+	"Tanjiro" "Kamado" announce
 end

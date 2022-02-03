@@ -670,7 +670,12 @@ impl Typer {
 			use parser::IRKind::*;
 			match i.kind {
 				End => break,
-				StructField(ty) => struct_type.field_types.push(ty),
+				StructField(ty) => {
+					if ty == parser::TypeSignature::Str {
+						struct_type.field_types.push(parser::TypeSignature::Int)
+					}
+					struct_type.field_types.push(ty);
+				}
 				_ => unreachable!(),
 			}
 		}
