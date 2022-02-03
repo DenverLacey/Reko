@@ -416,12 +416,9 @@ pub fn evaluate(program: Program) -> Result<(), String> {
 				let nbinds = program.functions[current_function].code[ip] as usize;
 				ip += 1;
 
-				for _ in 0..nbinds {
-					let value = data_stack
-						.pop()
-						.expect("We should have already checked that the data stack would have enough values");
-					bind_stack.push(value);
-				}
+				let bind_idx = data_stack.len() - nbinds;
+				let drain = data_stack.drain(bind_idx..);
+				bind_stack.extend(drain);
 			}
 			Unbind => {
 				let nbinds = program.functions[current_function].code[ip] as usize;
@@ -433,7 +430,7 @@ pub fn evaluate(program: Program) -> Result<(), String> {
 				let id = program.functions[current_function].code[ip] as usize;
 				ip += 1;
 
-				let value = bind_stack[bind_stack.len() - id - 1];
+				let value = bind_stack[id];
 				data_stack.push(value);
 			}
 			_ => panic!("Invalid instruction: {:?}", instruction),

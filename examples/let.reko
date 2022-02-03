@@ -9,5 +9,16 @@ do
 		b print
 		c print
 		d print
+
+		0 print
+
+		20 55
+		let x y in
+			b x + print
+			c y + print
+
+			x print
+			y print
+		end
 	end
 end

@@ -406,10 +406,9 @@ impl Typer {
 				});
 			}
 			Bind(nbinds) => {
-				for i in 0..nbinds {
-					let ty = self.type_stack().pop().ok_or("Not enough values for `let` expression".to_string())?;
-					self.bind_stack.push(ty);
-				}
+				let split_idx = self.type_stack().len() - nbinds;
+				let drain = self.type_stacks.last_mut().expect("We should have a type stack").drain(split_idx..);
+				self.bind_stack.extend(drain);
 
 				generated.push(TypedIR {
 					kind: TypedIRKind::Bind(nbinds),
@@ -422,7 +421,7 @@ impl Typer {
 				});
 			}
 			PushBind(id) => {
-				let ty = self.bind_stack[self.bind_stack.len() - id - 1].clone();
+				let ty = self.bind_stack[id].clone();
 				self.type_stack().push(ty);
 				generated.push(TypedIR { kind: TypedIRKind::PushBind(id) });
 			}

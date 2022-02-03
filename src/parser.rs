@@ -330,6 +330,7 @@ fn chunkify<'a>(t: &mut Tokenizer<'a>) -> Result<Chunks, String> {
 struct Parser {
 	global: Scope,
 	scopes: Vec<Scope>,
+	next_bind_id: usize,
 }
 
 impl Parser {
@@ -337,6 +338,7 @@ impl Parser {
 		Self {
 			global: Scope::new(ScopeKind::Global),
 			scopes: Default::default(),
+			next_bind_id: 0,
 		}
 	}
 
@@ -470,6 +472,7 @@ impl Parser {
 						.ok_or("Unexpected `end` keyword. No blocks to end!")?;
 
 					if let ScopeKind::Let(nbinds) = scope.kind {
+						self.next_bind_id -= nbinds;
 						generated.push(IR {
 							kind: IRKind::Unbind(nbinds),
 						});
@@ -522,8 +525,9 @@ impl Parser {
 								kind: TokenKind::Ident(ident),
 							}) => {
 								if ident != "_" {
-									self.bind(ident, Binding::Let(nbinds))?;
+									self.bind(ident, Binding::Let(self.next_bind_id))?;
 								}
+								self.next_bind_id += 1;
 								nbinds += 1;
 							}
 							_ => return Err("Expected identifier in `let` expression!".to_string()),
