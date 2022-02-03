@@ -1,18 +1,13 @@
 use crate::compiler;
-// use crate::parser;
 
 #[derive(Debug)]
 pub struct Function {
-	// pub parameters: Vec<parser::TypeSignature>,
-	// pub returns: Vec<parser::TypeSignature>,
 	pub code: compiler::Code,
 }
 
 impl Function {
 	pub fn new() -> Self {
 		Self {
-			// parameters: Vec::new(),
-			// returns: Vec::new(),
 			code: compiler::Code::new(),
 		}
 	}
@@ -20,8 +15,32 @@ impl Function {
 
 #[derive(Debug)]
 pub struct Program {
-	pub entry_index: usize,
+	entry_index: usize,
 	pub functions: Vec<Function>,
+	strings: Vec<String>,
+}
+
+impl Program {
+	pub fn new() -> Self {
+		Self {
+			entry_index: 0,
+			functions: Vec::new(),
+			strings: Vec::new(),
+		}
+	}
+
+	pub fn set_entry_index(&mut self, entry_index: usize) {
+		self.entry_index = entry_index;
+	}
+
+	pub fn add_string_constant(&mut self, string: String) -> usize {
+		if let Some(index) = self.strings.iter().position(|s| *s == string) {
+			index
+		} else {
+			self.strings.push(string);
+			self.strings.len() - 1
+		}
+	}
 }
 
 // Key:
@@ -283,12 +302,13 @@ pub fn evaluate(program: Program) -> Result<(), String> {
 				data_stack.push(value);
 			}
 			PushStr => {
-				let size = program.functions[current_function].code[ip];
+				let idx = program.functions[current_function].code[ip] as usize;
 				ip += 1;
 
-				let ptr: *const u8 =
-					unsafe { std::mem::transmute(program.functions[current_function].code[ip]) };
-				ip += 1;
+				let string = program.strings[idx].as_bytes();
+
+				let size = string.len();
+				let ptr = string.as_ptr();
 
 				data_stack.push(size as i64);
 				data_stack.push(ptr as i64);

@@ -38,10 +38,7 @@ struct Compiler {
 impl Compiler {
 	fn new() -> Self {
 		Self {
-			program: evaluator::Program {
-				entry_index: 0,
-				functions: Vec::new(),
-			},
+			program: evaluator::Program::new(),
 			function_map: HashMap::new(),
 			function_stack: Vec::new(),
 		}
@@ -59,7 +56,7 @@ impl Compiler {
 		self.program.functions.push(evaluator::Function::new());
 
 		if name == "main" {
-			self.program.entry_index = function_id;
+			self.program.set_entry_index(function_id);
 		}
 
 		self.function_map.insert(name, function_id);
@@ -97,7 +94,16 @@ impl Compiler {
 	}
 
 	fn emit_push_str(&mut self, value: String) {
-		todo!()
+		let index = self.program.add_string_constant(value);
+
+		let current_function_id = self.current_function_id();
+		let current_function = &mut self.program.functions[current_function_id];
+
+		current_function
+			.code
+			.push(evaluator::Instruction::PushStr as u64);
+
+		current_function.code.push(index as u64);
 	}
 
 	fn emit_instruction(&mut self, instruction: evaluator::Instruction) {

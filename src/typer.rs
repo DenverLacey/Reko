@@ -89,7 +89,14 @@ impl Typer {
 				});
 				self.type_stack().push(parser::TypeSignature::Int);
 			}
-			PushStr(value) => todo!(),
+			PushStr(value) => {
+				generated.push(TypedIR {
+				kind: TypedIRKind::PushStr(value),
+			});
+			self.type_stack().push(parser::TypeSignature::Int);
+			self.type_stack().push(parser::TypeSignature::Str);
+		}
+
 
 			// Keywords
 			End => return Err("Unexpected `end`!".to_string()),
@@ -172,9 +179,12 @@ impl Typer {
 					Int => generated.push(TypedIR {
 						kind: TypedIRKind::PrintInt,
 					}),
-					Str => generated.push(TypedIR {
+					Str => {
+						self.type_stack().pop().expect("No Int type no type stack before Str!");
+						generated.push(TypedIR {
 						kind: TypedIRKind::PrintStr,
-					}),
+					});
+				}
 					Ptr(_) => generated.push(TypedIR {
 						kind: TypedIRKind::PrintPtr,
 					}),
@@ -454,14 +464,20 @@ impl Typer {
 						} else {
 							&mut function_type.parameters
 						};
-						if let parser::TypeSignature::Struct(name) = type_signature {
-							let struct_type = self
-								.structs
-								.get(&name)
-								.expect("Unresolved identifiers should be caught during parsing");
-							types.extend_from_slice(struct_type.field_types.as_slice());
-						} else {
-							types.push(type_signature);
+
+						match type_signature {
+							parser::TypeSignature::Str => {
+								types.push(parser::TypeSignature::Int);
+								types.push(parser::TypeSignature::Str);
+							}
+							parser::TypeSignature::Struct(name) => {
+								let struct_type = self
+									.structs
+									.get(&name)
+									.expect("Unresolved identifiers should be caught during parsing");
+								types.extend_from_slice(struct_type.field_types.as_slice());
+							}
+							_ => types.push(type_signature),
 						}
 					}
 					DashDash => parsing_return_types = true,

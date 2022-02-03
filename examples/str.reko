@@ -1,0 +1,11 @@
+def greet 
+	str # name
+do
+	"Hello there..." print
+	print
+end
+
+def main
+do
+	"Zenitsu" greet
+end
