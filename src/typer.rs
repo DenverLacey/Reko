@@ -30,6 +30,7 @@ struct Typer {
 	// because of the better memory efficiency for branching expressions like `if` and `while`
 	//
 	type_stacks: Vec<Vec<parser::TypeSignature>>,
+	bind_stack: Vec<parser::TypeSignature>,
 }
 
 impl Typer {
@@ -38,6 +39,7 @@ impl Typer {
 			structs: HashMap::new(),
 			functions: HashMap::new(),
 			type_stacks: Vec::new(),
+			bind_stack: Vec::new(),
 		}
 	}
 
@@ -95,10 +97,8 @@ impl Typer {
 			Elif => return Err("Unexpected `elif`!".to_string()),
 			Else => return Err("Unexpected `else`!".to_string()),
 			While => self.typecheck_while(generated, rest)?,
-			Let => todo!(),
 			Then => return Err("Unexpected `then`!".to_string()),
 			Do => return Err("Unexpected `do`!".to_string()),
-			In => return Err("Unexpected `in`!".to_string()),
 			Def(name) => self.typecheck_function(generated, name, rest)?,
 			FunctionArgument(_) => unreachable!(),
 			Var(name) => todo!(),
@@ -405,6 +405,27 @@ impl Typer {
 					kind: TypedIRKind::Call(name),
 				});
 			}
+			Bind(nbinds) => {
+				for i in 0..nbinds {
+					let ty = self.type_stack().pop().ok_or("Not enough values for `let` expression".to_string())?;
+					self.bind_stack.push(ty);
+				}
+
+				generated.push(TypedIR {
+					kind: TypedIRKind::Bind(nbinds),
+				});
+			}
+			Unbind(nbinds) => {
+				self.bind_stack.truncate(self.bind_stack.len() - nbinds);
+				generated.push(TypedIR {
+					kind: TypedIRKind::Unbind(nbinds),
+				});
+			}
+			PushBind(id) => {
+				let ty = self.bind_stack[self.bind_stack.len() - id - 1].clone();
+				self.type_stack().push(ty);
+				generated.push(TypedIR { kind: TypedIRKind::PushBind(id) });
+			}
 		}
 		Ok(())
 	}
@@ -689,10 +710,8 @@ pub enum TypedIRKind {
 	Elif,
 	Else,
 	While,
-	Let,
 	Then,
 	Do,
-	In,
 	Def(String),
 	Var(String),
 
@@ -714,6 +733,9 @@ pub enum TypedIRKind {
 	Lt,
 	Gt,
 	Call(String),
+	Bind(usize),
+	Unbind(usize),
+	PushBind(usize),
 }
 
 pub type TypedChunk = Vec<TypedIR>;

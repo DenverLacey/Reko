@@ -308,7 +308,7 @@ fn chunkify<'a>(t: &mut Tokenizer<'a>) -> Result<Chunks, String> {
 				if let Some(token) = t.next() {
 					match token.kind {
 						End => num_expected_ends -= 1,
-						If | While | Def | Var | Const | Struct | Enum => num_expected_ends += 1,
+						If | While | Def | Var | Const | Let | Struct | Enum => num_expected_ends += 1,
 						_ => {}
 					}
 					chunk.push(token);
@@ -446,11 +446,14 @@ impl Parser {
 							}),
 						},
 						Binding::Variable(id) => todo!(),
+						Binding::Let(id) => generated.push(IR {
+							kind: IRKind::PushBind(*id),
+						}),
 						Binding::Function => generated.push(IR {
 							kind: IRKind::Call(ident),
 						}),
-						Binding::Struct => todo!(),
-						// Binding::Enum => todo!(),
+						// Binding::Struct => todo!(),
+						Binding::Struct => return Err(format!("Type name `{}` is not an expression!", ident)),
 					}
 				}
 				Int(value) => generated.push(IR {
@@ -462,10 +465,17 @@ impl Parser {
 
 				// Keywords
 				End => {
-					self
+					let scope = self
 						.pop_scope()
 						.ok_or("Unexpected `end` keyword. No blocks to end!")?;
-					generated.push(IR { kind: IRKind::End });
+
+					if let ScopeKind::Let(nbinds) = scope.kind {
+						generated.push(IR {
+							kind: IRKind::Unbind(nbinds),
+						});
+					} else {
+						generated.push(IR { kind: IRKind::End });
+					}
 				}
 				If => generated.push(IR { kind: IRKind::If }),
 				Elif => {
@@ -498,7 +508,38 @@ impl Parser {
 				While => generated.push(IR {
 					kind: IRKind::While,
 				}),
-				Let => todo!(),
+				Let => {
+					self.push_scope(ScopeKind::Let(0));
+
+					let mut nbinds = 0;
+					loop {
+						match iter.next() {
+							None => return Err("Unexpected EOF while parsing let block!".to_string()),
+							Some(Token {
+								kind: TokenKind::In,
+							}) => break,
+							Some(Token {
+								kind: TokenKind::Ident(ident),
+							}) => {
+								if ident != "_" {
+									self.bind(ident, Binding::Let(nbinds))?;
+								}
+								nbinds += 1;
+							}
+							_ => return Err("Expected identifier in `let` expression!".to_string()),
+						}
+					}
+
+					self
+						.scopes
+						.last_mut()
+						.expect("We pushed a scope before")
+						.kind = ScopeKind::Let(nbinds);
+
+					generated.push(IR {
+						kind: IRKind::Bind(nbinds),
+					});
+				}
 				Then => {
 					self.push_scope(ScopeKind::If);
 					generated.push(IR { kind: IRKind::Then });
@@ -507,7 +548,7 @@ impl Parser {
 					self.push_scope(ScopeKind::Def);
 					generated.push(IR { kind: IRKind::Do });
 				}
-				In => todo!(),
+				In => return Err("Unexpected `in` keyword!".to_string()),
 				Def => {
 					let ident = match iter.next() {
 						Some(Token {
@@ -717,15 +758,16 @@ enum ScopeKind {
 	Def,
 	If,
 	Else,
+	Let(usize),
 }
 
 #[derive(Debug)]
 enum Binding {
 	Constant(Constant),
 	Variable(usize),
+	Let(usize),
 	Function,
 	Struct,
-	// Enum,
 }
 
 #[derive(Debug)]
@@ -756,10 +798,8 @@ pub enum IRKind {
 	Elif,
 	Else,
 	While,
-	Let,
 	Then,
 	Do,
-	In,
 	Def(String),
 	FunctionArgument(TypeSignature),
 	Var(String),
@@ -783,6 +823,9 @@ pub enum IRKind {
 	Lt,
 	Gt,
 	Call(String),
+	Bind(usize),
+	Unbind(usize),
+	PushBind(usize),
 }
 
 #[derive(Debug, Clone)]

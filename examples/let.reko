@@ -1,0 +1,13 @@
+def main
+do
+	200 4 5 900
+	let a b c d in
+		a d + print
+		b c + print
+
+		a print
+		b print
+		c print
+		d print
+	end
+end

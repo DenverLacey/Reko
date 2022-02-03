@@ -26,7 +26,8 @@ pub struct Program {
 
 // Key:
 // () = arguments in the code
-// [] = arguments on the stack
+// [] = arguments on the data stack
+// {} = arguments on the bind stack
 // -a = peek argument (doesn't pop)
 //
 #[derive(Debug)]
@@ -62,6 +63,10 @@ pub enum Instruction {
 	Jump,      // 21. (relative jump) -> []
 	JumpTrue,  // 22. (relative jump) [a] -> []
 	JumpFalse, // 23. (relative jump) [a] -> []
+
+	Bind,     // 24. (K = no. binds) [a0, a1, ... aK] {} -> [] {a0, a1, ... aK}
+	Unbind,   // 25. (K = no. binds) {a0, a1, ... aK} -> {}
+	PushBind, // 26. (id) {aID} [] -> {aID} [aID]
 }
 
 // pub fn constant_evaluate(code: parser::IRChunk) -> Result<parser::Constant, String> {
@@ -250,7 +255,8 @@ pub fn evaluate(program: Program) -> Result<(), String> {
 	let mut ip = 0;
 
 	let mut data_stack = Vec::new();
-	let mut return_stack: Vec<usize> = Vec::new();
+	let mut return_stack = Vec::new();
+	let mut bind_stack = Vec::new();
 
 	while ip < program.functions[current_function].code.len() {
 		let instruction = program.functions[current_function].code[ip] as u8;
@@ -405,6 +411,30 @@ pub fn evaluate(program: Program) -> Result<(), String> {
 				if should_jump {
 					ip = ((ip as i64) + jump) as usize;
 				}
+			}
+			Bind => {
+				let nbinds = program.functions[current_function].code[ip] as usize;
+				ip += 1;
+
+				for _ in 0..nbinds {
+					let value = data_stack
+						.pop()
+						.expect("We should have already checked that the data stack would have enough values");
+					bind_stack.push(value);
+				}
+			}
+			Unbind => {
+				let nbinds = program.functions[current_function].code[ip] as usize;
+				ip += 1;
+
+				bind_stack.truncate(bind_stack.len() - nbinds);
+			}
+			PushBind => {
+				let id = program.functions[current_function].code[ip] as usize;
+				ip += 1;
+
+				let value = bind_stack[bind_stack.len() - id - 1];
+				data_stack.push(value);
 			}
 			_ => panic!("Invalid instruction: {:?}", instruction),
 		}

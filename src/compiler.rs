@@ -162,6 +162,45 @@ impl Compiler {
 
 		current_function.code[jump_index] = (current_function.code.len() - jump_index - 1) as u64;
 	}
+
+	fn emit_bind(&mut self, nbinds: usize) {
+		let current_function_id = self.current_function_id();
+		let current_function = &mut self.program.functions[current_function_id];
+
+		current_function
+			.code
+			.push(evaluator::Instruction::Bind as u64);
+
+		current_function
+			.code
+			.push(unsafe { std::mem::transmute(nbinds) });
+	}
+
+	fn emit_unbind(&mut self, nbinds: usize) {
+		let current_function_id = self.current_function_id();
+		let current_function = &mut self.program.functions[current_function_id];
+
+		current_function
+			.code
+			.push(evaluator::Instruction::Unbind as u64);
+
+		current_function
+			.code
+			.push(unsafe { std::mem::transmute(nbinds) });
+	}
+
+	fn emit_push_bind(&mut self, index: usize) {
+		let current_function_id = self.current_function_id();
+		let current_function = &mut self.program.functions[current_function_id];
+
+		current_function
+			.code
+			.push(evaluator::Instruction::PushBind as u64);
+
+		current_function
+			.code
+			.push(unsafe { std::mem::transmute(index) });
+	}
 }
 
 impl Compiler {
@@ -183,10 +222,8 @@ impl Compiler {
 			Elif => return Err("Unexpected `elif`!".to_string()),
 			Else => return Err("Unexpected `else`!".to_string()),
 			While => self.compile_while(rest)?,
-			Let => todo!(),
 			Then => return Err("Unexpected `then`!".to_string()),
 			Do => return Err("Unexpected `do`!".to_string()),
-			In => return Err("Unexpected `in`!".to_string()),
 			Def(name) => self.compile_function(name, rest)?,
 			Var(name) => todo!(),
 			// DashDash => unreachable!(),
@@ -196,7 +233,6 @@ impl Compiler {
 			Over => self.emit_instruction(evaluator::Instruction::Over),
 			Drop => self.emit_instruction(evaluator::Instruction::Drop),
 			Swap => self.emit_instruction(evaluator::Instruction::Swap),
-			// Print => self.emit_instruction(evaluator::Instruction::PrintInt), // @HACK: For now we only print ints
 			PrintBool => self.emit_instruction(evaluator::Instruction::PrintBool),
 			PrintInt => self.emit_instruction(evaluator::Instruction::PrintInt),
 			PrintStr => self.emit_instruction(evaluator::Instruction::PrintStr),
@@ -215,6 +251,9 @@ impl Compiler {
 					.expect(format!("No function named `{}` in function map!", name).as_str());
 				self.emit_call(function_id);
 			}
+			Bind(nbinds) => self.emit_bind(nbinds),
+			Unbind(nbinds) => self.emit_unbind(nbinds),
+			PushBind(id) => self.emit_push_bind(id),
 		}
 		Ok(())
 	}
