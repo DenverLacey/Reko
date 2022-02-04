@@ -218,6 +218,12 @@ impl<'a> Tokenizer<'a> {
 			">" => Token {
 				kind: TokenKind::Gt,
 			},
+			"<-" => Token {
+				kind: TokenKind::LeftArrow,
+			},
+			"@" => Token {
+				kind: TokenKind::At,
+			},
 			_ => Token {
 				kind: TokenKind::Ident(string),
 			},
@@ -273,6 +279,8 @@ enum TokenKind {
 	Neq,
 	Lt,
 	Gt,
+	LeftArrow,
+	At,
 }
 
 type Chunk = Vec<Token>;
@@ -447,7 +455,9 @@ impl Parser {
 								kind: IRKind::PushStr(value.clone()),
 							}),
 						},
-						Binding::Variable(id) => todo!(),
+						Binding::Variable => generated.push(IR {
+							kind: IRKind::PushVar(ident),
+						}),
 						Binding::Let(id) => generated.push(IR {
 							kind: IRKind::PushBind(*id),
 						}),
@@ -469,15 +479,20 @@ impl Parser {
 				End => {
 					let scope = self
 						.pop_scope()
-						.ok_or("Unexpected `end` keyword. No blocks to end!")?;
+						.ok_or("1. Unexpected `end` keyword. No blocks to end!")?;
 
-					if let ScopeKind::Let(nbinds) = scope.kind {
-						self.next_bind_id -= nbinds;
-						generated.push(IR {
-							kind: IRKind::Unbind(nbinds),
-						});
-					} else {
-						generated.push(IR { kind: IRKind::End });
+					match scope.kind {
+						ScopeKind::Let(nbinds) => {
+							self.next_bind_id -= nbinds;
+							generated.push(IR {
+								kind: IRKind::Unbind(nbinds),
+							});
+						}
+						ScopeKind::Var(name) => {
+							self.bind(name, Binding::Variable)?;
+							generated.push(IR { kind: IRKind::End });
+						}
+						_ => generated.push(IR { kind: IRKind::End }),
 					}
 				}
 				If => generated.push(IR { kind: IRKind::If }),
@@ -595,7 +610,20 @@ impl Parser {
 						}
 					}
 				}
-				Var => todo!(),
+				Var => {
+					let ident = match iter.next() {
+						Some(Token {
+							kind: TokenKind::Ident(ident),
+						}) => ident,
+						_ => return Err("Expected an identifier after `var` keyword1".to_string()),
+					};
+
+					self.push_scope(ScopeKind::Var(ident.clone()));
+
+					generated.push(IR {
+						kind: IRKind::Var(ident),
+					});
+				}
 				Const => {
 					let ident = match iter.next() {
 						Some(Token {
@@ -704,6 +732,10 @@ impl Parser {
 				Neq => generated.push(IR { kind: IRKind::Neq }),
 				Lt => generated.push(IR { kind: IRKind::Lt }),
 				Gt => generated.push(IR { kind: IRKind::Gt }),
+				LeftArrow => generated.push(IR {
+					kind: IRKind::Assign,
+				}),
+				At => generated.push(IR { kind: IRKind::Load }),
 			}
 		}
 
@@ -763,12 +795,13 @@ enum ScopeKind {
 	If,
 	Else,
 	Let(usize),
+	Var(String),
 }
 
 #[derive(Debug)]
 enum Binding {
 	Constant(Constant),
-	Variable(usize),
+	Variable,
 	Let(usize),
 	Function,
 	Struct,
@@ -826,10 +859,13 @@ pub enum IRKind {
 	Neq,
 	Lt,
 	Gt,
+	Assign,
+	Load,
 	Call(String),
 	Bind(usize),
 	Unbind(usize),
 	PushBind(usize),
+	PushVar(String),
 }
 
 #[derive(Debug, Clone)]

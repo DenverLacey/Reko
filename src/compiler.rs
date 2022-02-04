@@ -18,8 +18,8 @@ pub fn compile(ir_chunks: typer::TypedChunks) -> Result<evaluator::Program, Stri
 				kind: typer::TypedIRKind::Def(ident),
 			} => compiler.compile_function(ident.clone(), &mut ir)?,
 			typer::TypedIR {
-				kind: typer::TypedIRKind::Var(_),
-			} => todo!("Implement compilation of variables at top-level"),
+				kind: typer::TypedIRKind::Var,
+			} => compiler.compile_variable(&mut ir)?,
 			_ => unreachable!(),
 		}
 	}
@@ -207,6 +207,32 @@ impl Compiler {
 			.code
 			.push(unsafe { std::mem::transmute(index) });
 	}
+
+	fn emit_push_var(&mut self, index: usize) {
+		let current_function_id = self.current_function_id();
+		let current_function = &mut self.program.functions[current_function_id];
+
+		current_function
+			.code
+			.push(evaluator::Instruction::PushVar as u64);
+
+		current_function
+			.code
+			.push(unsafe { std::mem::transmute(index) });
+	}
+
+	fn emit_make_var(&mut self, index: usize) {
+		let current_function_id = self.current_function_id();
+		let current_function = &mut self.program.functions[current_function_id];
+
+		current_function
+			.code
+			.push(evaluator::Instruction::MakeVar as u64);
+
+		current_function
+			.code
+			.push(unsafe { std::mem::transmute(index) });
+	}
 }
 
 impl Compiler {
@@ -231,8 +257,7 @@ impl Compiler {
 			Then => return Err("Unexpected `then`!".to_string()),
 			Do => return Err("Unexpected `do`!".to_string()),
 			Def(name) => self.compile_function(name, rest)?,
-			Var(name) => todo!(),
-			// DashDash => unreachable!(),
+			Var => self.compile_variable(rest)?,
 
 			// Operators
 			Dup => self.emit_instruction(evaluator::Instruction::Dup),
@@ -251,6 +276,9 @@ impl Compiler {
 			Neq => self.emit_instruction(evaluator::Instruction::Neq),
 			Lt => self.emit_instruction(evaluator::Instruction::Lt),
 			Gt => self.emit_instruction(evaluator::Instruction::Gt),
+			Assign => self.emit_instruction(evaluator::Instruction::Assign),
+			Load => self.emit_instruction(evaluator::Instruction::Load),
+			LoadStr => self.emit_instruction(evaluator::Instruction::LoadStr),
 			Call(name) => {
 				let function_id = self
 					.get_function_id(&name)
@@ -260,6 +288,8 @@ impl Compiler {
 			Bind(nbinds) => self.emit_bind(nbinds),
 			Unbind(nbinds) => self.emit_unbind(nbinds),
 			PushBind(id) => self.emit_push_bind(id),
+			PushVar(index) => self.emit_push_var(index),
+			MakeVar(_) => unreachable!(),
 		}
 		Ok(())
 	}
@@ -281,6 +311,18 @@ impl Compiler {
 			.function_stack
 			.pop()
 			.expect("We should have pushed one on at the start of the function!");
+
+		Ok(())
+	}
+
+	fn compile_variable(&mut self, ir: &mut IRIter) -> Result<(), String> {
+		while let Some(i) = ir.next() {
+			use typer::TypedIRKind::*;
+			match i.kind {
+				MakeVar(index) => self.emit_make_var(index),
+				_ => self.compile_expression(i.kind, ir)?,
+			}
+		}
 
 		Ok(())
 	}

@@ -74,18 +74,23 @@ pub enum Instruction {
 	Multiply, // 15. [a, b] -> [c]
 	Divide,   // 16. [a, b] -> [c]
 
-	Eq,  // 17. [a, b] -> [c]
-	Neq, // 18. [a, b] -> [c]
-	Lt,  // 19. [a, b] -> [c]
-	Gt,  // 20. [a, b] -> [c]
+	Eq,      // 17. [a, b] -> [c]
+	Neq,     // 18. [a, b] -> [c]
+	Lt,      // 19. [a, b] -> [c]
+	Gt,      // 20. [a, b] -> [c]
+	Assign,  // 21. [ptr, a] -> []
+	Load,    // 22. [ptr] -> [a]
+	LoadStr, // 23. [ptr] -> [size, chars]
 
-	Jump,      // 21. (relative jump) -> []
-	JumpTrue,  // 22. (relative jump) [a] -> []
-	JumpFalse, // 23. (relative jump) [a] -> []
+	Jump,      // 24. (relative jump) -> []
+	JumpTrue,  // 25. (relative jump) [a] -> []
+	JumpFalse, // 26. (relative jump) [a] -> []
 
-	Bind,     // 24. (K = no. binds) [a0, a1, ... aK] {} -> [] {a0, a1, ... aK}
-	Unbind,   // 25. (K = no. binds) {a0, a1, ... aK} -> {}
-	PushBind, // 26. (id) {aID} [] -> {aID} [aID]
+	Bind,     // 27. (K = no. binds) [a0, a1, ... aK] {} -> [] {a0, a1, ... aK}
+	Unbind,   // 28. (K = no. binds) {a0, a1, ... aK} -> {}
+	PushBind, // 29. (id) {aID} [] -> {aID} [aID]
+	PushVar,  // 30. (id) [] -> [a]
+	MakeVar,  // 31. (id) [a] -> []
 }
 
 // pub fn constant_evaluate(code: parser::IRChunk) -> Result<parser::Constant, String> {
@@ -269,13 +274,14 @@ pub enum Instruction {
 // 		.ok_or("Code does not evaluate to any value!".to_string())
 // }
 
-pub fn evaluate(program: Program) -> Result<(), String> {
+pub fn evaluate(mut program: Program) -> Result<(), String> {
 	let mut current_function = program.entry_index;
 	let mut ip = 0;
 
 	let mut data_stack = Vec::new();
 	let mut return_stack = Vec::new();
 	let mut bind_stack = Vec::new();
+	let mut variables = Vec::new();
 
 	while ip < program.functions[current_function].code.len() {
 		let instruction = program.functions[current_function].code[ip] as u8;
@@ -409,6 +415,18 @@ pub fn evaluate(program: Program) -> Result<(), String> {
 				let a = data_stack.pop().ok_or("Stack underflow!".to_string())?;
 				data_stack.push((a > b) as i64);
 			}
+			Assign => {
+				let value = data_stack.pop().ok_or("Stack underflow!".to_string())?;
+				let ptr = data_stack.pop().ok_or("Stack underflow!".to_string())? as *mut i64;
+				unsafe {
+					*ptr = value;
+				}
+			}
+			Load => {
+				let ptr = data_stack.pop().ok_or("Stack underflow!".to_string())? as *const i64;
+				data_stack.push(unsafe { *ptr });
+			}
+			LoadStr => todo!(),
 			Jump => {
 				let jump = program.functions[current_function].code[ip] as i64;
 				ip += 1;
@@ -452,6 +470,25 @@ pub fn evaluate(program: Program) -> Result<(), String> {
 
 				let value = bind_stack[id];
 				data_stack.push(value);
+			}
+			PushVar => {
+				let index = program.functions[current_function].code[ip] as usize;
+				ip += 1;
+
+				let value = (&variables[index]) as *const i64;
+				data_stack.push(value as i64);
+			}
+			MakeVar => {
+				let index = program.functions[current_function].code[ip] as usize;
+				ip += 1;
+
+				let value = data_stack.pop().ok_or("Stack underflow!".to_string())?;
+
+				variables.push(value);
+
+				if variables.len() - 1 != index {
+					return Err(format!("Internal Error: Mismatched indexes while making variable! Expected: `{}` vs. Actual: `{}`", index, variables.len() - 1));
+				}
 			}
 			_ => panic!("Invalid instruction: {:?}", instruction),
 		}

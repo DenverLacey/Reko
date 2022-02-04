@@ -24,6 +24,8 @@ pub fn typecheck(ir_chunks: parser::IRChunks) -> Result<TypedChunks, String> {
 struct Typer {
 	structs: HashMap<String, StructType>,
 	functions: HashMap<String, FunctionType>,
+	variables: HashMap<String, VariableInfo>,
+	next_variable_index: usize,
 
 	// @NOTE:
 	// This might be better for this to be a Vec<LinkedList<TypeSignature>>
@@ -38,6 +40,8 @@ impl Typer {
 		Self {
 			structs: HashMap::new(),
 			functions: HashMap::new(),
+			variables: HashMap::new(),
+			next_variable_index: 0,
 			type_stacks: Vec::new(),
 			bind_stack: Vec::new(),
 		}
@@ -49,6 +53,12 @@ impl Typer {
 			.last_mut()
 			.expect("We should have a type stack already")
 	}
+
+	fn add_variable(&mut self, name: String, ty: parser::TypeSignature) -> usize {
+		self.variables.insert(name, VariableInfo::new(ty, self.next_variable_index));
+		self.next_variable_index += 1;
+		self.next_variable_index - 1
+	}
 }
 
 impl Typer {
@@ -59,7 +69,7 @@ impl Typer {
 			use parser::IRKind::*;
 			match i.kind {
 				Def(name) => self.typecheck_function(&mut generated, name, ir)?,
-				Var(name) => todo!(),
+				Var(name) => self.typecheck_variable(&mut generated, name, ir)?,
 				Struct(name) => self.typecheck_struct(name, ir)?,
 				_ => unreachable!(),
 			}
@@ -92,11 +102,10 @@ impl Typer {
 			PushStr(value) => {
 				generated.push(TypedIR {
 				kind: TypedIRKind::PushStr(value),
-			});
-			self.type_stack().push(parser::TypeSignature::Int);
-			self.type_stack().push(parser::TypeSignature::Str);
-		}
-
+				});
+				self.type_stack().push(parser::TypeSignature::Int);
+				self.type_stack().push(parser::TypeSignature::Str);
+			}
 
 			// Keywords
 			End => return Err("Unexpected `end`!".to_string()),
@@ -108,7 +117,7 @@ impl Typer {
 			Do => return Err("Unexpected `do`!".to_string()),
 			Def(name) => self.typecheck_function(generated, name, rest)?,
 			FunctionArgument(_) => unreachable!(),
-			Var(name) => todo!(),
+			Var(name) => self.typecheck_variable(generated, name, rest)?,
 			Struct(name) => self.typecheck_struct(name, rest)?,
 			StructField(_) => unreachable!(),
 			Include(_) => unreachable!(), // This'll eventually be handled in the parser
@@ -375,6 +384,45 @@ impl Typer {
 					kind: TypedIRKind::Gt,
 				});
 			}
+			Assign => {
+				// @TODO:
+				// handle strings
+				//
+				let b = self.type_stack().pop().ok_or("Cannot assign nonexistant data to a variable!".to_string())?;
+				let a = self.type_stack().pop().ok_or("Cannot assign to nonexistant data!".to_string())?;
+
+				if let parser::TypeSignature::Ptr(ptr_to) = a {
+					if b != *ptr_to {
+						return Err(format!("Cannot assign to mismatched types! Expected `{:?}` but found `{:?}`", ptr_to, b));
+					}
+				} else {
+					return Err(format!("Cannot assign to something of non-pointer type! Found `{:?}`!", a));
+				}
+
+				generated.push(TypedIR {
+					kind: TypedIRKind::Assign,
+				});
+			}
+			Load => {
+				let a = self.type_stack().pop().ok_or("Cannot load non-existant data!".to_string())?;
+				match a {
+					parser::TypeSignature::Ptr(ptr_to) => {
+						if let parser::TypeSignature::Str = *ptr_to {
+							self.type_stack().push(parser::TypeSignature::Int);
+							self.type_stack().push(parser::TypeSignature::Str);
+							generated.push(TypedIR {
+								kind: TypedIRKind::LoadStr,
+							});
+						} else {
+							self.type_stack().push(*ptr_to);
+							generated.push(TypedIR {
+								kind: TypedIRKind::Load,
+							});
+						}
+					}
+					_ => return Err(format!("Cannot load something of type `{:?}`!", a)),
+				}
+			}
 			Call(name) => {
 				let function_type = self
 					.functions
@@ -434,6 +482,17 @@ impl Typer {
 				let ty = self.bind_stack[id].clone();
 				self.type_stack().push(ty);
 				generated.push(TypedIR { kind: TypedIRKind::PushBind(id) });
+			}
+			PushVar(name) => {
+				let var = self.variables.get(&name).expect("Unknown identifiers should be handled during parsing");
+				self
+				.type_stacks
+				.last_mut()
+				.expect("We should have a type stack")
+				.push(parser::TypeSignature::Ptr(
+					Box::new(var.ty.clone()))
+				);
+				generated.push(TypedIR { kind: TypedIRKind::PushVar(var.index) });
 			}
 		}
 		Ok(())
@@ -519,6 +578,33 @@ impl Typer {
 			.type_stacks
 			.pop()
 			.expect("We pushed one before typechecking the body so it should be here");
+
+		Ok(())
+	}
+
+	fn typecheck_variable(&mut self, generated: &mut TypedChunk, name: String, ir: &mut IRIter) -> Result<(), String> {
+		self.type_stacks.push(Vec::new());
+
+		generated.push(TypedIR { kind: TypedIRKind::Var });
+
+		while let Some(i) = ir.next() {
+			use parser::IRKind::*;
+			match i.kind {
+				End => break,
+				_ => self.typecheck_expression(generated, i.kind, ir)?,
+			}
+		}
+
+		if self.type_stack().len() != 1 {
+			return Err("Body of `var` expression does not evaluate to a single value!".to_string());
+		}
+
+		let var_type = self.type_stack().pop().expect("We just checked its length");
+		let var_index = self.add_variable(name, var_type);
+
+		generated.push(TypedIR { kind: TypedIRKind::MakeVar(var_index) });
+
+		self.type_stacks.pop().expect("We push a new stack for the var");
 
 		Ok(())
 	}
@@ -712,6 +798,17 @@ impl FunctionType {
 	}
 }
 
+struct VariableInfo {
+	ty: parser::TypeSignature,
+	index: usize,
+}
+
+impl VariableInfo {
+	fn new(ty: parser::TypeSignature, index: usize) -> Self {
+		Self { ty, index }
+	}
+}
+
 #[derive(Debug)]
 pub struct TypedIR {
 	pub kind: TypedIRKind,
@@ -733,7 +830,7 @@ pub enum TypedIRKind {
 	Then,
 	Do,
 	Def(String),
-	Var(String),
+	Var,
 
 	// Operators
 	Dup,
@@ -752,10 +849,15 @@ pub enum TypedIRKind {
 	Neq,
 	Lt,
 	Gt,
+	Assign,
+	Load,
+	LoadStr,
 	Call(String),
 	Bind(usize),
 	Unbind(usize),
 	PushBind(usize),
+	PushVar(usize),
+	MakeVar(usize)
 }
 
 pub type TypedChunk = Vec<TypedIR>;

@@ -6,7 +6,8 @@ end
 def announce 
 	Person
 do
-	let fn fs ln ls in
+	let fn fs ln ls 
+	in
 		"A Person!" print
 		
 		"Firstname of..." print

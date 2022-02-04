@@ -1,0 +1,7 @@
+def main
+do
+	var x 5;
+	x @ print
+	x 10 <-
+	x @ print
+end
