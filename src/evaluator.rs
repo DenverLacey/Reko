@@ -16,6 +16,7 @@ impl Function {
 #[derive(Debug)]
 pub struct Program {
 	entry_index: usize,
+	pub variable_size: usize,
 	pub functions: Vec<Function>,
 	strings: Vec<String>,
 }
@@ -24,6 +25,7 @@ impl Program {
 	pub fn new() -> Self {
 		Self {
 			entry_index: 0,
+			variable_size: 0,
 			functions: Vec::new(),
 			strings: Vec::new(),
 		}
@@ -91,6 +93,38 @@ pub enum Instruction {
 	PushBind, // 29. (id) {aID} [] -> {aID} [aID]
 	PushVar,  // 30. (id) [] -> [a]
 	MakeVar,  // 31. (id) [a] -> []
+}
+
+struct Evaluator {
+	program: Program,
+
+	current_function: usize,
+	ip: usize,
+
+	data_stack: Vec<i64>,
+	return_stack: Vec<usize>,
+	bind_stack: Vec<i64>,
+	variables: Vec<i64>,
+}
+
+impl Evaluator {
+	fn new(program: Program) -> Self {
+		let variable_size = program.variable_size;
+		Self {
+			program,
+			current_function: 0,
+			ip: 0,
+			data_stack: Vec::new(),
+			return_stack: Vec::new(),
+			bind_stack: Vec::new(),
+			variables: vec![0; variable_size],
+		}
+	}
+
+	fn prepare_for_program_evaluation(&mut self) {
+		self.current_function = self.program.entry_index;
+		self.ip = 0;
+	}
 }
 
 // pub fn constant_evaluate(code: parser::IRChunk) -> Result<parser::Constant, String> {
@@ -274,18 +308,36 @@ pub enum Instruction {
 // 		.ok_or("Code does not evaluate to any value!".to_string())
 // }
 
-pub fn evaluate(mut program: Program) -> Result<(), String> {
-	let mut current_function = program.entry_index;
-	let mut ip = 0;
+pub fn evaluate(program: Program) -> Result<(), String> {
+	let mut evaluator = Evaluator::new(program);
+	evaluator.evaluate_global_function()?;
+	evaluator.prepare_for_program_evaluation();
 
-	let mut data_stack = Vec::new();
-	let mut return_stack = Vec::new();
-	let mut bind_stack = Vec::new();
-	let mut variables = Vec::new();
+	while evaluator.ip
+		< evaluator.program.functions[evaluator.current_function]
+			.code
+			.len()
+	{
+		let returning_main = evaluator.evaluate_instruction()?;
+		if returning_main {
+			break;
+		}
+	}
 
-	while ip < program.functions[current_function].code.len() {
-		let instruction = program.functions[current_function].code[ip] as u8;
-		ip += 1;
+	Ok(())
+}
+
+impl Evaluator {
+	fn evaluate_global_function(&mut self) -> Result<(), String> {
+		while self.ip < self.program.functions[0].code.len() {
+			self.evaluate_instruction()?;
+		}
+		Ok(())
+	}
+
+	fn evaluate_instruction(&mut self) -> Result<bool, String> {
+		let instruction = self.program.functions[self.current_function].code[self.ip] as u8;
+		self.ip += 1;
 
 		let instruction = unsafe { std::mem::transmute::<u8, Instruction>(instruction) };
 
@@ -294,63 +346,90 @@ pub fn evaluate(mut program: Program) -> Result<(), String> {
 			_NoOp => panic!("Hit a no-op during evaluation!"),
 
 			PushBool => {
-				let value: i64 =
-					unsafe { std::mem::transmute(program.functions[current_function].code[ip]) };
-				ip += 1;
+				let value: i64 = unsafe {
+					std::mem::transmute(self.program.functions[self.current_function].code[self.ip])
+				};
+				self.ip += 1;
 
-				data_stack.push(value);
+				self.data_stack.push(value);
 			}
 			PushInt => {
-				let value: i64 =
-					unsafe { std::mem::transmute(program.functions[current_function].code[ip]) };
-				ip += 1;
+				let value: i64 = unsafe {
+					std::mem::transmute(self.program.functions[self.current_function].code[self.ip])
+				};
+				self.ip += 1;
 
-				data_stack.push(value);
+				self.data_stack.push(value);
 			}
 			PushStr => {
-				let idx = program.functions[current_function].code[ip] as usize;
-				ip += 1;
+				let idx = self.program.functions[self.current_function].code[self.ip] as usize;
+				self.ip += 1;
 
-				let string = program.strings[idx].as_bytes();
+				let string = self.program.strings[idx].as_bytes();
 
 				let size = string.len();
 				let ptr = string.as_ptr();
 
-				data_stack.push(size as i64);
-				data_stack.push(ptr as i64);
+				self.data_stack.push(size as i64);
+				self.data_stack.push(ptr as i64);
 			}
 			Dup => {
-				let top = *data_stack.last().ok_or("Stack underflow!".to_string())?;
-				data_stack.push(top);
+				let top = *self
+					.data_stack
+					.last()
+					.ok_or("Stack underflow!".to_string())?;
+				self.data_stack.push(top);
 			}
 			Over => {
-				if data_stack.len() < 2 {
+				if self.data_stack.len() < 2 {
 					return Err("Stack underflow!".to_string());
 				}
 
-				let over = data_stack[data_stack.len() - 2];
-				data_stack.push(over);
+				let over = self.data_stack[self.data_stack.len() - 2];
+				self.data_stack.push(over);
 			}
 			Drop => {
-				data_stack.pop().ok_or("Stack underflow!".to_string())?;
+				self
+					.data_stack
+					.pop()
+					.ok_or("Stack underflow!".to_string())?;
 			}
 			Swap => {
-				let a = data_stack.pop().ok_or("Stack underflow!".to_string())?;
-				let b = data_stack.pop().ok_or("Stack underflow!".to_string())?;
-				data_stack.push(a);
-				data_stack.push(b);
+				let a = self
+					.data_stack
+					.pop()
+					.ok_or("Stack underflow!".to_string())?;
+				let b = self
+					.data_stack
+					.pop()
+					.ok_or("Stack underflow!".to_string())?;
+				self.data_stack.push(a);
+				self.data_stack.push(b);
 			}
 			PrintBool => {
-				let top = data_stack.pop().ok_or("Stack underflow!".to_string())? != 0;
+				let top = self
+					.data_stack
+					.pop()
+					.ok_or("Stack underflow!".to_string())?
+					!= 0;
 				println!("{}", top);
 			}
 			PrintInt => {
-				let top = data_stack.pop().ok_or("Stack underflow!".to_string())?;
+				let top = self
+					.data_stack
+					.pop()
+					.ok_or("Stack underflow!".to_string())?;
 				println!("{}", top);
 			}
 			PrintStr => {
-				let ptr = data_stack.pop().ok_or("Stack underflow!".to_string())? as *const u8;
-				let size = data_stack.pop().ok_or("Stack underflow!".to_string())? as usize;
+				let ptr = self
+					.data_stack
+					.pop()
+					.ok_or("Stack underflow!".to_string())? as *const u8;
+				let size = self
+					.data_stack
+					.pop()
+					.ok_or("Stack underflow!".to_string())? as usize;
 				let string = std::str::from_utf8(unsafe { std::slice::from_raw_parts(ptr, size) });
 				match string {
 					Ok(s) => println!("{}", s),
@@ -358,141 +437,210 @@ pub fn evaluate(mut program: Program) -> Result<(), String> {
 				}
 			}
 			Call => {
-				let callee_id = program.functions[current_function].code[ip] as usize;
+				let callee_id = self.program.functions[self.current_function].code[self.ip] as usize;
 
-				return_stack.push(ip + 1);
-				return_stack.push(current_function);
+				self.return_stack.push(self.ip + 1);
+				self.return_stack.push(self.current_function);
 
-				current_function = callee_id;
-				ip = 0;
+				self.current_function = callee_id;
+				self.ip = 0;
 			}
 			Return => {
-				if return_stack.len() < 2 {
-					// returning from main
-					break;
+				if self.return_stack.len() < 2 {
+					// returning from
+					return Ok(true);
 				}
 
-				current_function = return_stack.pop().expect("We just checked its length!");
-				ip = return_stack.pop().expect("We just checked its length!");
+				self.current_function = self
+					.return_stack
+					.pop()
+					.expect("We just checked its length!");
+				self.ip = self
+					.return_stack
+					.pop()
+					.expect("We just checked its length!");
 			}
 			Add => {
-				let b = data_stack.pop().ok_or("Stack underflow!".to_string())?;
-				let a = data_stack.pop().ok_or("Stack underflow!".to_string())?;
-				data_stack.push(a + b);
+				let b = self
+					.data_stack
+					.pop()
+					.ok_or("Stack underflow!".to_string())?;
+				let a = self
+					.data_stack
+					.pop()
+					.ok_or("Stack underflow!".to_string())?;
+				self.data_stack.push(a + b);
 			}
 			Subtract => {
-				let b = data_stack.pop().ok_or("Stack underflow!".to_string())?;
-				let a = data_stack.pop().ok_or("Stack underflow!".to_string())?;
-				data_stack.push(a - b);
+				let b = self
+					.data_stack
+					.pop()
+					.ok_or("Stack underflow!".to_string())?;
+				let a = self
+					.data_stack
+					.pop()
+					.ok_or("Stack underflow!".to_string())?;
+				self.data_stack.push(a - b);
 			}
 			Multiply => {
-				let b = data_stack.pop().ok_or("Stack underflow!".to_string())?;
-				let a = data_stack.pop().ok_or("Stack underflow!".to_string())?;
-				data_stack.push(a * b);
+				let b = self
+					.data_stack
+					.pop()
+					.ok_or("Stack underflow!".to_string())?;
+				let a = self
+					.data_stack
+					.pop()
+					.ok_or("Stack underflow!".to_string())?;
+				self.data_stack.push(a * b);
 			}
 			Divide => {
-				let b = data_stack.pop().ok_or("Stack underflow!".to_string())?;
-				let a = data_stack.pop().ok_or("Stack underflow!".to_string())?;
-				data_stack.push(a / b);
+				let b = self
+					.data_stack
+					.pop()
+					.ok_or("Stack underflow!".to_string())?;
+				let a = self
+					.data_stack
+					.pop()
+					.ok_or("Stack underflow!".to_string())?;
+				self.data_stack.push(a / b);
 			}
 			Eq => {
-				let b = data_stack.pop().ok_or("Stack underflow!".to_string())?;
-				let a = data_stack.pop().ok_or("Stack underflow!".to_string())?;
-				data_stack.push((a == b) as i64);
+				let b = self
+					.data_stack
+					.pop()
+					.ok_or("Stack underflow!".to_string())?;
+				let a = self
+					.data_stack
+					.pop()
+					.ok_or("Stack underflow!".to_string())?;
+				self.data_stack.push((a == b) as i64);
 			}
 			Neq => {
-				let b = data_stack.pop().ok_or("Stack underflow!".to_string())?;
-				let a = data_stack.pop().ok_or("Stack underflow!".to_string())?;
-				data_stack.push((a != b) as i64);
+				let b = self
+					.data_stack
+					.pop()
+					.ok_or("Stack underflow!".to_string())?;
+				let a = self
+					.data_stack
+					.pop()
+					.ok_or("Stack underflow!".to_string())?;
+				self.data_stack.push((a != b) as i64);
 			}
 			Lt => {
-				let b = data_stack.pop().ok_or("Stack underflow!".to_string())?;
-				let a = data_stack.pop().ok_or("Stack underflow!".to_string())?;
-				data_stack.push((a < b) as i64);
+				let b = self
+					.data_stack
+					.pop()
+					.ok_or("Stack underflow!".to_string())?;
+				let a = self
+					.data_stack
+					.pop()
+					.ok_or("Stack underflow!".to_string())?;
+				self.data_stack.push((a < b) as i64);
 			}
 			Gt => {
-				let b = data_stack.pop().ok_or("Stack underflow!".to_string())?;
-				let a = data_stack.pop().ok_or("Stack underflow!".to_string())?;
-				data_stack.push((a > b) as i64);
+				let b = self
+					.data_stack
+					.pop()
+					.ok_or("Stack underflow!".to_string())?;
+				let a = self
+					.data_stack
+					.pop()
+					.ok_or("Stack underflow!".to_string())?;
+				self.data_stack.push((a > b) as i64);
 			}
 			Assign => {
-				let value = data_stack.pop().ok_or("Stack underflow!".to_string())?;
-				let ptr = data_stack.pop().ok_or("Stack underflow!".to_string())? as *mut i64;
+				let value = self
+					.data_stack
+					.pop()
+					.ok_or("Stack underflow!".to_string())?;
+				let ptr = self
+					.data_stack
+					.pop()
+					.ok_or("Stack underflow!".to_string())? as *mut i64;
 				unsafe {
 					*ptr = value;
 				}
 			}
 			Load => {
-				let ptr = data_stack.pop().ok_or("Stack underflow!".to_string())? as *const i64;
-				data_stack.push(unsafe { *ptr });
+				let ptr = self
+					.data_stack
+					.pop()
+					.ok_or("Stack underflow!".to_string())? as *const i64;
+				self.data_stack.push(unsafe { *ptr });
 			}
 			LoadStr => todo!(),
 			Jump => {
-				let jump = program.functions[current_function].code[ip] as i64;
-				ip += 1;
-				ip = ((ip as i64) + jump) as usize;
+				let jump = self.program.functions[self.current_function].code[self.ip] as i64;
+				self.ip += 1;
+				self.ip = ((self.ip as i64) + jump) as usize;
 			}
 			JumpTrue => {
-				let jump = program.functions[current_function].code[ip] as i64;
-				ip += 1;
+				let jump = self.program.functions[self.current_function].code[self.ip] as i64;
+				self.ip += 1;
 
-				let should_jump = data_stack.pop().ok_or("Stack underflow!".to_string())? != 0;
+				let should_jump = self
+					.data_stack
+					.pop()
+					.ok_or("Stack underflow!".to_string())?
+					!= 0;
 				if should_jump {
-					ip = ((ip as i64) + jump) as usize;
+					self.ip = ((self.ip as i64) + jump) as usize;
 				}
 			}
 			JumpFalse => {
-				let jump = program.functions[current_function].code[ip] as i64;
-				ip += 1;
+				let jump = self.program.functions[self.current_function].code[self.ip] as i64;
+				self.ip += 1;
 
-				let should_jump = data_stack.pop().ok_or("Stack underflow!".to_string())? == 0;
+				let should_jump = self
+					.data_stack
+					.pop()
+					.ok_or("Stack underflow!".to_string())?
+					== 0;
 				if should_jump {
-					ip = ((ip as i64) + jump) as usize;
+					self.ip = ((self.ip as i64) + jump) as usize;
 				}
 			}
 			Bind => {
-				let nbinds = program.functions[current_function].code[ip] as usize;
-				ip += 1;
+				let nbinds = self.program.functions[self.current_function].code[self.ip] as usize;
+				self.ip += 1;
 
-				let bind_idx = data_stack.len() - nbinds;
-				let drain = data_stack.drain(bind_idx..);
-				bind_stack.extend(drain);
+				let bind_idx = self.data_stack.len() - nbinds;
+				let drain = self.data_stack.drain(bind_idx..);
+				self.bind_stack.extend(drain);
 			}
 			Unbind => {
-				let nbinds = program.functions[current_function].code[ip] as usize;
-				ip += 1;
+				let nbinds = self.program.functions[self.current_function].code[self.ip] as usize;
+				self.ip += 1;
 
-				bind_stack.truncate(bind_stack.len() - nbinds);
+				self.bind_stack.truncate(self.bind_stack.len() - nbinds);
 			}
 			PushBind => {
-				let id = program.functions[current_function].code[ip] as usize;
-				ip += 1;
+				let id = self.program.functions[self.current_function].code[self.ip] as usize;
+				self.ip += 1;
 
-				let value = bind_stack[id];
-				data_stack.push(value);
+				let value = self.bind_stack[id];
+				self.data_stack.push(value);
 			}
 			PushVar => {
-				let index = program.functions[current_function].code[ip] as usize;
-				ip += 1;
+				let index = self.program.functions[self.current_function].code[self.ip] as usize;
+				self.ip += 1;
 
-				let value = (&variables[index]) as *const i64;
-				data_stack.push(value as i64);
+				let value = (&self.variables[index]) as *const i64;
+				self.data_stack.push(value as i64);
 			}
 			MakeVar => {
-				let index = program.functions[current_function].code[ip] as usize;
-				ip += 1;
+				let index = self.program.functions[self.current_function].code[self.ip] as usize;
+				self.ip += 1;
 
-				let value = data_stack.pop().ok_or("Stack underflow!".to_string())?;
-
-				variables.push(value);
-
-				if variables.len() - 1 != index {
-					return Err(format!("Internal Error: Mismatched indexes while making variable! Expected: `{}` vs. Actual: `{}`", index, variables.len() - 1));
-				}
+				let value = self
+					.data_stack
+					.pop()
+					.ok_or("Stack underflow!".to_string())?;
+				self.variables[index] = value;
 			}
 			_ => panic!("Invalid instruction: {:?}", instruction),
 		}
-	}
 
-	Ok(())
+		Ok(false)
+	}
 }

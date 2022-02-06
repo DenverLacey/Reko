@@ -479,7 +479,7 @@ impl Parser {
 				End => {
 					let scope = self
 						.pop_scope()
-						.ok_or("1. Unexpected `end` keyword. No blocks to end!")?;
+						.ok_or("Unexpected `end` keyword. No blocks to end!")?;
 
 					match scope.kind {
 						ScopeKind::Let(nbinds) => {

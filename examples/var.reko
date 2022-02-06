@@ -1,7 +1,21 @@
+var global 500;
+
 def main
 do
-	var x 5;
-	x @ print
-	x 10 <-
-	x @ print
+	var local 5;
+
+	"global:" print
+	global @ print
+
+	"local:" print
+	local @ print
+
+	global 1000 <-
+	local 10 <-
+
+	"global:" print
+	global @ print
+
+	"local:" print
+	local @ print
 end

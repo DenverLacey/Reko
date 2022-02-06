@@ -37,11 +37,16 @@ struct Compiler {
 
 impl Compiler {
 	fn new() -> Self {
-		Self {
+		let mut s = Self {
 			program: evaluator::Program::new(),
 			function_map: HashMap::new(),
 			function_stack: Vec::new(),
-		}
+		};
+
+		s.program.functions.push(evaluator::Function::new());
+		s.function_stack.push(0);
+
+		s
 	}
 
 	fn current_function_id(&self) -> usize {
@@ -319,7 +324,12 @@ impl Compiler {
 		while let Some(i) = ir.next() {
 			use typer::TypedIRKind::*;
 			match i.kind {
-				MakeVar(index) => self.emit_make_var(index),
+				MakeVar(index) => {
+					if index >= self.program.variable_size {
+						self.program.variable_size = index + 1;
+					}
+					self.emit_make_var(index);
+				}
 				_ => self.compile_expression(i.kind, ir)?,
 			}
 		}
