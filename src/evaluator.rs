@@ -549,14 +549,14 @@ impl Evaluator {
 				self.data_stack.push((a > b) as i64);
 			}
 			Assign => {
-				let value = self
-					.data_stack
-					.pop()
-					.ok_or("Stack underflow!".to_string())?;
 				let ptr = self
 					.data_stack
 					.pop()
 					.ok_or("Stack underflow!".to_string())? as *mut i64;
+				let value = self
+					.data_stack
+					.pop()
+					.ok_or("Stack underflow!".to_string())?;
 				unsafe {
 					*ptr = value;
 				}

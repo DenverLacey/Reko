@@ -391,12 +391,12 @@ impl Typer {
 				let b = self.type_stack().pop().ok_or("Cannot assign nonexistant data to a variable!".to_string())?;
 				let a = self.type_stack().pop().ok_or("Cannot assign to nonexistant data!".to_string())?;
 
-				if let parser::TypeSignature::Ptr(ptr_to) = a {
-					if b != *ptr_to {
-						return Err(format!("Cannot assign to mismatched types! Expected `{:?}` but found `{:?}`", ptr_to, b));
+				if let parser::TypeSignature::Ptr(ptr_to) = b {
+					if a != *ptr_to {
+						return Err(format!("Cannot assign to mismatched types! Expected `{:?}` but found `{:?}`", ptr_to, a));
 					}
 				} else {
-					return Err(format!("Cannot assign to something of non-pointer type! Found `{:?}`!", a));
+					return Err(format!("Cannot assign to something of non-pointer type! Found `{:?}`!", b));
 				}
 
 				generated.push(TypedIR {

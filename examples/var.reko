@@ -10,8 +10,8 @@ do
 	"local:" print
 	local @ print
 
-	global 1000 <-
-	local 10 <-
+	1000 global <-
+	10 local <-
 
 	"global:" print
 	global @ print
