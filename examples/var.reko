@@ -13,6 +13,8 @@ do
 	1000 global <-
 	10 local <-
 
+	"" print
+
 	"global:" print
 	global @ print
 
