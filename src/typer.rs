@@ -200,6 +200,53 @@ impl Typer {
 					Struct(_) => unreachable!(),
 				}
 			}
+			And => {
+				let b = self.type_stack().pop().ok_or("Cannot `and` nonexistant data!".to_string())?;
+				let a = self.type_stack().pop().ok_or("Cannot `and` nonexistant data!".to_string())?;
+
+				if a != parser::TypeSignature::Bool {
+					return Err(format!("Cannot `and` something of type `{:?}`!", a));
+				}
+				if b != parser::TypeSignature::Bool {
+					return Err(format!("Cannot `and` something of type `{:?}`!", b));
+				}
+
+				self.type_stack().push(parser::TypeSignature::Bool);
+
+				generated.push(TypedIR {
+					kind: TypedIRKind::And,
+				});
+			}
+			Or => {
+				let b = self.type_stack().pop().ok_or("Cannot `or` nonexistant data!".to_string())?;
+				let a = self.type_stack().pop().ok_or("Cannot `or` nonexistant data!".to_string())?;
+
+				if a != parser::TypeSignature::Bool {
+					return Err(format!("Cannot `or` something of type `{:?}`!", a));
+				}
+				if b != parser::TypeSignature::Bool {
+					return Err(format!("Cannot `or` something of type `{:?}`!", b));
+				}
+
+				self.type_stack().push(parser::TypeSignature::Bool);
+
+				generated.push(TypedIR {
+					kind: TypedIRKind::Or,
+				});
+			}
+			Not => {
+				let a = self.type_stack().pop().ok_or("Cannot `or` nonexistant data!".to_string())?;
+
+				if a != parser::TypeSignature::Bool {
+					return Err(format!("Cannot `or` something of type `{:?}`!", a));
+				}
+
+				self.type_stack().push(parser::TypeSignature::Bool);
+
+				generated.push(TypedIR {
+					kind: TypedIRKind::Not,
+				});
+			}
 			Add => {
 				let b = self
 					.type_stack()
@@ -841,6 +888,9 @@ pub enum TypedIRKind {
 	PrintInt,
 	PrintStr,
 	PrintPtr,
+	And,
+	Or,
+	Not,
 	Add,
 	Subtract,
 	Multiply,

@@ -71,28 +71,31 @@ pub enum Instruction {
 	Call,   // 11. (fid) -> [return values]
 	Return, // 12. [] -> []
 
-	Add,      // 13. [a, b] -> [c]
-	Subtract, // 14. [a, b] -> [c]
-	Multiply, // 15. [a, b] -> [c]
-	Divide,   // 16. [a, b] -> [c]
+	And,      // 13. [a, b] -> [c]
+	Or,       // 14. [a, b] -> [c]
+	Not,      // 15. [a] -> [a]
+	Add,      // 16. [a, b] -> [c]
+	Subtract, // 17. [a, b] -> [c]
+	Multiply, // 18. [a, b] -> [c]
+	Divide,   // 19. [a, b] -> [c]
 
-	Eq,      // 17. [a, b] -> [c]
-	Neq,     // 18. [a, b] -> [c]
-	Lt,      // 19. [a, b] -> [c]
-	Gt,      // 20. [a, b] -> [c]
-	Assign,  // 21. [ptr, a] -> []
-	Load,    // 22. [ptr] -> [a]
-	LoadStr, // 23. [ptr] -> [size, chars]
+	Eq,      // 20. [a, b] -> [c]
+	Neq,     // 21. [a, b] -> [c]
+	Lt,      // 22. [a, b] -> [c]
+	Gt,      // 23. [a, b] -> [c]
+	Assign,  // 24. [ptr, a] -> []
+	Load,    // 25. [ptr] -> [a]
+	LoadStr, // 26. [ptr] -> [size, chars]
 
-	Jump,      // 24. (relative jump) -> []
-	JumpTrue,  // 25. (relative jump) [a] -> []
-	JumpFalse, // 26. (relative jump) [a] -> []
+	Jump,      // 27. (relative jump) -> []
+	JumpTrue,  // 28. (relative jump) [a] -> []
+	JumpFalse, // 29. (relative jump) [a] -> []
 
-	Bind,     // 27. (K = no. binds) [a0, a1, ... aK] {} -> [] {a0, a1, ... aK}
-	Unbind,   // 28. (K = no. binds) {a0, a1, ... aK} -> {}
-	PushBind, // 29. (id) {aID} [] -> {aID} [aID]
-	PushVar,  // 30. (id) [] -> [a]
-	MakeVar,  // 31. (id) [a] -> []
+	Bind,     // 30. (K = no. binds) [a0, a1, ... aK] {} -> [] {a0, a1, ... aK}
+	Unbind,   // 31. (K = no. binds) {a0, a1, ... aK} -> {}
+	PushBind, // 32. (id) {aID} [] -> {aID} [aID]
+	PushVar,  // 33. (id) [] -> [a]
+	MakeVar,  // 34. (id) [a] -> []
 }
 
 struct Evaluator {
@@ -459,6 +462,40 @@ impl Evaluator {
 					.return_stack
 					.pop()
 					.expect("We just checked its length!");
+			}
+			And => {
+				let b = self
+					.data_stack
+					.pop()
+					.ok_or("Stack underflow!".to_string())?
+					!= 0;
+				let a = self
+					.data_stack
+					.pop()
+					.ok_or("Stack underflow!".to_string())?
+					!= 0;
+				self.data_stack.push((a && b) as i64);
+			}
+			Or => {
+				let b = self
+					.data_stack
+					.pop()
+					.ok_or("Stack underflow!".to_string())?
+					!= 0;
+				let a = self
+					.data_stack
+					.pop()
+					.ok_or("Stack underflow!".to_string())?
+					!= 0;
+				self.data_stack.push((a || b) as i64);
+			}
+			Not => {
+				let a = self
+					.data_stack
+					.pop()
+					.ok_or("Stack underflow!".to_string())?
+					!= 0;
+				self.data_stack.push((!a) as i64);
 			}
 			Add => {
 				let b = self

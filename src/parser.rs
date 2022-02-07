@@ -194,6 +194,15 @@ impl<'a> Tokenizer<'a> {
 			"print" => Token {
 				kind: TokenKind::Print,
 			},
+			"and" => Token {
+				kind: TokenKind::And,
+			},
+			"or" => Token {
+				kind: TokenKind::Or,
+			},
+			"not" => Token {
+				kind: TokenKind::Not,
+			},
 			"+" => Token {
 				kind: TokenKind::Plus,
 			},
@@ -271,6 +280,9 @@ enum TokenKind {
 	Drop,
 	Swap,
 	Print,
+	And,
+	Or,
+	Not,
 	Plus,
 	Dash,
 	Star,
@@ -718,6 +730,9 @@ impl Parser {
 				Print => generated.push(IR {
 					kind: IRKind::Print,
 				}),
+				And => generated.push(IR { kind: IRKind::And }),
+				Or => generated.push(IR { kind: IRKind::Or }),
+				Not => generated.push(IR { kind: IRKind::Not }),
 				Plus => generated.push(IR { kind: IRKind::Add }),
 				Dash => generated.push(IR {
 					kind: IRKind::Subtract,
@@ -851,6 +866,9 @@ pub enum IRKind {
 	Drop,
 	Swap,
 	Print,
+	And,
+	Or,
+	Not,
 	Add,
 	Subtract,
 	Multiply,
@@ -875,7 +893,6 @@ pub enum TypeSignature {
 	Str,
 	Ptr(Box<TypeSignature>),
 	Struct(String),
-	// Enum(String),
 }
 
 impl std::cmp::PartialEq for TypeSignature {

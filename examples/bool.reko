@@ -1,0 +1,26 @@
+def main
+do
+	"true true and:" print
+	true true and print
+
+	"false true and:" print
+	false true and print
+
+	"false false and:" print
+	false false and print
+
+	"true true or:" print
+	true true or print
+
+	"false true or:" print
+	false true or print
+
+	"false false or:" print
+	false false or print
+
+	"true not print:" print
+	true not print
+
+	"false not print:" print
+	false not print
+end
