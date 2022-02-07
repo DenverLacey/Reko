@@ -189,7 +189,7 @@ impl Typer {
 						kind: TypedIRKind::PrintInt,
 					}),
 					Str => {
-						self.type_stack().pop().expect("No Int type no type stack before Str!");
+						self.type_stack().pop().expect("No Int type on stack before Str!");
 						generated.push(TypedIR {
 						kind: TypedIRKind::PrintStr,
 					});
@@ -205,10 +205,10 @@ impl Typer {
 				let a = self.type_stack().pop().ok_or("Cannot `and` nonexistant data!".to_string())?;
 
 				if a != parser::TypeSignature::Bool {
-					return Err(format!("Cannot `and` something of type `{:?}`!", a));
+					return Err(format!("Cannot `and` something of type `{}`!", a));
 				}
 				if b != parser::TypeSignature::Bool {
-					return Err(format!("Cannot `and` something of type `{:?}`!", b));
+					return Err(format!("Cannot `and` something of type `{}`!", b));
 				}
 
 				self.type_stack().push(parser::TypeSignature::Bool);
@@ -222,10 +222,10 @@ impl Typer {
 				let a = self.type_stack().pop().ok_or("Cannot `or` nonexistant data!".to_string())?;
 
 				if a != parser::TypeSignature::Bool {
-					return Err(format!("Cannot `or` something of type `{:?}`!", a));
+					return Err(format!("Cannot `or` something of type `{}`!", a));
 				}
 				if b != parser::TypeSignature::Bool {
-					return Err(format!("Cannot `or` something of type `{:?}`!", b));
+					return Err(format!("Cannot `or` something of type `{}`!", b));
 				}
 
 				self.type_stack().push(parser::TypeSignature::Bool);
@@ -238,7 +238,7 @@ impl Typer {
 				let a = self.type_stack().pop().ok_or("Cannot `or` nonexistant data!".to_string())?;
 
 				if a != parser::TypeSignature::Bool {
-					return Err(format!("Cannot `or` something of type `{:?}`!", a));
+					return Err(format!("Cannot `or` something of type `{}`!", a));
 				}
 
 				self.type_stack().push(parser::TypeSignature::Bool);
@@ -258,10 +258,10 @@ impl Typer {
 					.ok_or("Cannot add nonexistant data!".to_string())?;
 
 				if a != parser::TypeSignature::Int {
-					return Err(format!("Cannot add something of type `{:?}`!", a));
+					return Err(format!("Cannot add something of type `{}`!", a));
 				}
 				if b != parser::TypeSignature::Int {
-					return Err(format!("Cannot add something of type `{:?}`!", a));
+					return Err(format!("Cannot add something of type `{}`!", b));
 				}
 
 				self.type_stack().push(parser::TypeSignature::Int);
@@ -281,10 +281,10 @@ impl Typer {
 					.ok_or("Cannot subtract nonexistant data!".to_string())?;
 
 				if a != parser::TypeSignature::Int {
-					return Err(format!("Cannot subtract something of type `{:?}`!", a));
+					return Err(format!("Cannot subtract something of type `{}`!", a));
 				}
 				if b != parser::TypeSignature::Int {
-					return Err(format!("Cannot subtract something of type `{:?}`!", a));
+					return Err(format!("Cannot subtract something of type `{}`!", b));
 				}
 
 				self.type_stack().push(parser::TypeSignature::Int);
@@ -304,10 +304,10 @@ impl Typer {
 					.ok_or("Cannot multiply nonexistant data!".to_string())?;
 
 				if a != parser::TypeSignature::Int {
-					return Err(format!("Cannot multiply something of type `{:?}`!", a));
+					return Err(format!("Cannot multiply something of type `{}`!", a));
 				}
 				if b != parser::TypeSignature::Int {
-					return Err(format!("Cannot multiply something of type `{:?}`!", a));
+					return Err(format!("Cannot multiply something of type `{}`!", b));
 				}
 
 				self.type_stack().push(parser::TypeSignature::Int);
@@ -327,10 +327,10 @@ impl Typer {
 					.ok_or("Cannot divide nonexistant data!".to_string())?;
 
 				if a != parser::TypeSignature::Int {
-					return Err(format!("Cannot divide something of type `{:?}`!", a));
+					return Err(format!("Cannot divide something of type `{}`!", a));
 				}
 				if b != parser::TypeSignature::Int {
-					return Err(format!("Cannot divide something of type `{:?}`!", a));
+					return Err(format!("Cannot divide something of type `{}`!", b));
 				}
 
 				self.type_stack().push(parser::TypeSignature::Int);
@@ -351,7 +351,7 @@ impl Typer {
 
 				if a != b {
 					return Err(format!(
-						"Operands of equality operation have different types! `{:?}` vs. `{:?}`!",
+						"Operands of equality operation have different types! `{}` vs. `{}`!",
 						a, b
 					));
 				}
@@ -374,7 +374,7 @@ impl Typer {
 
 				if a != b {
 					return Err(format!(
-						"Operands of non-equality operation have different types! `{:?}` vs. `{:?}`!",
+						"Operands of non-equality operation have different types! `{}` vs. `{}`!",
 						a, b
 					));
 				}
@@ -396,10 +396,10 @@ impl Typer {
 					.ok_or("Cannot compare nonexistant data!".to_string())?;
 
 				if a != parser::TypeSignature::Int {
-					return Err(format!("Cannot compare something of type `{:?}`!", a));
+					return Err(format!("Cannot compare something of type `{}`!", a));
 				}
 				if b != parser::TypeSignature::Int {
-					return Err(format!("Cannot compare something of type `{:?}`!", a));
+					return Err(format!("Cannot compare something of type `{}`!", b));
 				}
 
 				self.type_stack().push(parser::TypeSignature::Bool);
@@ -419,10 +419,10 @@ impl Typer {
 					.ok_or("Cannot compare nonexistant data!".to_string())?;
 
 				if a != parser::TypeSignature::Int {
-					return Err(format!("Cannot compare something of type `{:?}`!", a));
+					return Err(format!("Cannot compare something of type `{}`!", a));
 				}
 				if b != parser::TypeSignature::Int {
-					return Err(format!("Cannot compare something of type `{:?}`!", a));
+					return Err(format!("Cannot compare something of type `{}`!", b));
 				}
 
 				self.type_stack().push(parser::TypeSignature::Bool);
@@ -440,10 +440,10 @@ impl Typer {
 
 				if let parser::TypeSignature::Ptr(ptr_to) = b {
 					if a != *ptr_to {
-						return Err(format!("Cannot assign to mismatched types! Expected `{:?}` but found `{:?}`", ptr_to, a));
+						return Err(format!("Cannot assign to mismatched types! Expected `{}` but found `{}`", ptr_to, a));
 					}
 				} else {
-					return Err(format!("Cannot assign to something of non-pointer type! Found `{:?}`!", b));
+					return Err(format!("Cannot assign to something of non-pointer type! Found `{}`!", b));
 				}
 
 				generated.push(TypedIR {
@@ -467,7 +467,7 @@ impl Typer {
 							});
 						}
 					}
-					_ => return Err(format!("Cannot load something of type `{:?}`!", a)),
+					_ => return Err(format!("Cannot load something of type `{}`!", a)),
 				}
 			}
 			Call(name) => {
@@ -483,10 +483,10 @@ impl Typer {
 					.ends_with(function_type.parameters.as_slice())
 				{
 					return Err(format!(
-						"Incorrect types for call to `{}`! Stack: {:?}. Parameters: {:?}", 
+						"Incorrect types for call to `{}`! Stack: {}. Parameters: {}",
 						name, 
-						self.type_stacks.last().expect("We should have a type stack"), 
-						function_type.parameters
+						parser::DisplayVec(self.type_stacks.last().expect("We should have a type stack")), 
+						parser::DisplayVec(&function_type.parameters)
 					));
 				}
 
@@ -614,10 +614,10 @@ impl Typer {
 				.returns
 		{
 			return Err(format!(
-				"The function `{}` doesn't match its return types! Expected: {:?} vs. Actual {:?}",
+				"The function `{}` doesn't match its return types! Expected: {} vs. Actual {}",
 				name,
-				self.functions.get(&name).expect("We inserted it before checking the body").returns,
-				self.type_stacks.last().expect("We should have a type stack"),
+				parser::DisplayVec(&self.functions.get(&name).expect("We inserted it before checking the body").returns),
+				parser::DisplayVec(self.type_stacks.last().expect("We should have a type stack")),
 			));
 		}
 
@@ -674,7 +674,7 @@ impl Typer {
 						.ok_or("No value on stack for condition of `if` expression!".to_string())?;
 					if top != parser::TypeSignature::Bool {
 						return Err(format!(
-							"Type on stack for condition of `if` expression should be {:?} but found {:?}",
+							"Type on stack for condition of `if` expression should be {} but found {}",
 							parser::TypeSignature::Bool,
 							top,
 						));
@@ -684,12 +684,12 @@ impl Typer {
 					});
 				}
 				Elif => {
-					if let Some(type_stack_branch) = &type_stack_before_branch {
-						if self.type_stack() != type_stack_branch {
+					if let Some(type_stack_before_branch) = &type_stack_before_branch {
+						if self.type_stack() != type_stack_before_branch {
 							return Err(format!(
-								"A branch of `if` expression returns different types to other branches! Expected: {:?} vs. Actual: {:?}", 
-								type_stack_before_branch, 
-								self.type_stack(),
+								"A branch of `if` expression returns different types to other branches! Expected: {} vs. Actual: {}", 
+								parser::DisplayVec(type_stack_before_branch), 
+								parser::DisplayVec(self.type_stack()),
 							));
 						}
 					} else {
@@ -701,12 +701,12 @@ impl Typer {
 					});
 				}
 				Else => {
-					if let Some(type_stack_branch) = &type_stack_before_branch {
-						if self.type_stack() != type_stack_branch {
+					if let Some(type_stack_before_branch) = &type_stack_before_branch {
+						if self.type_stack() != type_stack_before_branch {
 							return Err(format!(
-								"A branch of `if` expression returns different types to other branches! Expected: {:?} vs. Actual: {:?}", 
-								type_stack_before_branch, 
-								self.type_stack(),
+								"A branch of `if` expression returns different types to other branches! Expected: {} vs. Actual: {}", 
+								parser::DisplayVec(type_stack_before_branch),
+								parser::DisplayVec(self.type_stack()),
 							));
 						}
 					} else {
@@ -721,17 +721,17 @@ impl Typer {
 					if let Some(type_stack_before_branch) = &type_stack_before_branch {
 						if self.type_stack() != type_stack_before_branch {
 							return Err(format!(
-								"A branch of `if` expression returns different types to other branches! Expected: {:?} vs. Actual: {:?}", 
-								type_stack_before_branch, 
-								self.type_stack(),
+								"A branch of `if` expression returns different types to other branches! Expected: {} vs. Actual: {}", 
+								parser::DisplayVec(type_stack_before_branch),
+								parser::DisplayVec(self.type_stack()),
 							));
 						}
 					} else {
 						if *self.type_stack() != type_stack_before_if {
 							return Err(format!(
-								"`if` expression ends with altered type stack! Before: {:?} vs. After: {:?}",
-								type_stack_before_if,
-								self.type_stack(),
+								"`if` expression ends with altered type stack! Before: {} vs. After: {}",
+								parser::DisplayVec(&type_stack_before_if),
+								parser::DisplayVec(self.type_stack()),
 							));
 						}
 					}
@@ -772,7 +772,7 @@ impl Typer {
 						.ok_or("`while` loop requires a condition but no data is present!".to_string())?;
 					if condition != parser::TypeSignature::Bool {
 						return Err(format!(
-							"`while` loop requires its condition value to be `bool` but found {:?}",
+							"`while` loop requires its condition value to be `bool` but found {}",
 							condition
 						));
 					}
@@ -787,9 +787,9 @@ impl Typer {
 
 		if type_stack_before_loop != *self.type_stack() {
 			return Err(format!(
-				"`while` loop ends with altered type stack! Expected: {:?} vs. Actual: {:?}", 
-				type_stack_before_loop, 
-				self.type_stack()
+				"`while` loop ends with altered type stack! Expected: {} vs. Actual: {}", 
+				parser::DisplayVec(&type_stack_before_loop),
+				parser::DisplayVec(self.type_stack()),
 			));
 		}
 

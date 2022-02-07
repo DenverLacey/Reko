@@ -915,3 +915,37 @@ impl std::cmp::PartialEq for TypeSignature {
 }
 
 impl std::cmp::Eq for TypeSignature {}
+
+impl std::fmt::Display for TypeSignature {
+	fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> Result<(), std::fmt::Error> {
+		use TypeSignature::*;
+		match self {
+			Bool => write!(f, "bool"),
+			Int => write!(f, "int"),
+			Str => write!(f, "str"),
+			Ptr(ptr_to) => write!(f, "* {}", ptr_to.as_ref()),
+			Struct(name) => write!(f, "{}", name),
+		}
+	}
+}
+
+pub struct DisplayVec<'a, T: 'a>(pub &'a [T]);
+
+impl<'a, T> std::fmt::Display for DisplayVec<'a, T>
+where
+	T: std::fmt::Display + 'a,
+{
+	fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+		write!(f, "[");
+		let mut first = true;
+		for ty in self.0 {
+			if first {
+				write!(f, "{}", ty);
+				first = false;
+			} else {
+				write!(f, ", {}", ty);
+			}
+		}
+		write!(f, "]")
+	}
+}
