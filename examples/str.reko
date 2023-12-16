@@ -6,15 +6,15 @@ end
 def announce 
 	Person
 do
-	let fn fs ln ls 
+	let f l
 	in
 		"A Person!" print
 		
 		"Firstname of..." print
-		fn fs print
+		f print
 
 		"Lastname of..." print
-		ln ls print
+		l print
 	end
 end
 

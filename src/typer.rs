@@ -101,9 +101,8 @@ impl Typer {
 			}
 			PushStr(value) => {
 				generated.push(TypedIR {
-				kind: TypedIRKind::PushStr(value),
+                    kind: TypedIRKind::PushStr(value),
 				});
-				self.type_stack().push(parser::TypeSignature::Int);
 				self.type_stack().push(parser::TypeSignature::Str);
 			}
 
@@ -188,12 +187,10 @@ impl Typer {
 					Int => generated.push(TypedIR {
 						kind: TypedIRKind::PrintInt,
 					}),
-					Str => {
-						self.type_stack().pop().expect("No Int type on stack before Str!");
+					Str =>
 						generated.push(TypedIR {
 						kind: TypedIRKind::PrintStr,
-					});
-				}
+					}),
 					Ptr(_) => generated.push(TypedIR {
 						kind: TypedIRKind::PrintPtr,
 					}),
@@ -455,7 +452,6 @@ impl Typer {
 				match a {
 					parser::TypeSignature::Ptr(ptr_to) => {
 						if let parser::TypeSignature::Str = *ptr_to {
-							self.type_stack().push(parser::TypeSignature::Int);
 							self.type_stack().push(parser::TypeSignature::Str);
 							generated.push(TypedIR {
 								kind: TypedIRKind::LoadStr,
@@ -572,10 +568,6 @@ impl Typer {
 						};
 
 						match type_signature {
-							parser::TypeSignature::Str => {
-								types.push(parser::TypeSignature::Int);
-								types.push(parser::TypeSignature::Str);
-							}
 							parser::TypeSignature::Struct(name) => {
 								let struct_type = self
 									.structs
@@ -804,9 +796,6 @@ impl Typer {
 			match i.kind {
 				End => break,
 				StructField(ty) => {
-					if ty == parser::TypeSignature::Str {
-						struct_type.field_types.push(parser::TypeSignature::Int)
-					}
 					struct_type.field_types.push(ty);
 				}
 				_ => unreachable!(),
