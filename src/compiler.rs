@@ -98,7 +98,7 @@ impl Compiler {
             .push(unsafe { std::mem::transmute::<i64, u64>(value) });
     }
 
-    fn emit_push_str(&mut self, value: String) -> Result<(), String> {
+    fn emit_push_str(&mut self, value: &str) -> Result<(), String> {
         let index = self.program.add_string_constant(value)?;
 
         let current_function_id = self.current_function_id();
@@ -252,7 +252,7 @@ impl Compiler {
             // Literals
             PushBool(value) => self.emit_push_bool(value),
             PushInt(value) => self.emit_push_int(value),
-            PushStr(value) => self.emit_push_str(value)?,
+            PushStr(value) => self.emit_push_str(&value)?,
 
             // Keywords
             End => return Err("Unexpected `end`!".to_string()),
@@ -287,7 +287,6 @@ impl Compiler {
             Gt => self.emit_instruction(evaluator::Instruction::Gt),
             Assign => self.emit_instruction(evaluator::Instruction::Assign),
             Load => self.emit_instruction(evaluator::Instruction::Load),
-            LoadStr => self.emit_instruction(evaluator::Instruction::LoadStr),
             Call(name) => {
                 let function_id = self
                     .get_function_id(&name)

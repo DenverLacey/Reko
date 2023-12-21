@@ -19,7 +19,6 @@ pub struct Program {
     entry_index: usize,
     pub variable_size: usize,
     pub functions: Vec<Function>,
-    // _strings: Vec<String>,
     strings: Vec<Box<[u8]>>,
 }
 
@@ -29,7 +28,6 @@ impl Program {
             entry_index: 0,
             variable_size: 0,
             functions: Vec::new(),
-            // _strings: Vec::new(),
             strings: Vec::new(),
         }
     }
@@ -38,7 +36,7 @@ impl Program {
         self.entry_index = entry_index;
     }
 
-    pub fn add_string_constant(&mut self, string: String) -> Result<usize, String> {
+    pub fn add_string_constant(&mut self, string: &str) -> Result<usize, String> {
         if let Some(index) = self
             .strings
             .iter()
@@ -46,7 +44,7 @@ impl Program {
         {
             Ok(index)
         } else {
-            let zstring = string::make_from_str(&string)
+            let zstring = string::make_from_str(string)
                 .map_err(|err| format!("Failed to allocate string constant: {err}"))?;
             self.strings.push(zstring);
             Ok(self.strings.len() - 1)
@@ -88,23 +86,22 @@ pub enum Instruction {
     Multiply, // 18. [a, b] -> [c]
     Divide,   // 19. [a, b] -> [c]
 
-    Eq,      // 20. [a, b] -> [c]
-    Neq,     // 21. [a, b] -> [c]
-    Lt,      // 22. [a, b] -> [c]
-    Gt,      // 23. [a, b] -> [c]
-    Assign,  // 24. [ptr, a] -> []
-    Load,    // 25. [ptr] -> [a]
-    LoadStr, // 26. [ptr] -> [size, chars]
+    Eq,     // 20. [a, b] -> [c]
+    Neq,    // 21. [a, b] -> [c]
+    Lt,     // 22. [a, b] -> [c]
+    Gt,     // 23. [a, b] -> [c]
+    Assign, // 24. [ptr, a] -> []
+    Load,   // 25. [ptr] -> [a]
 
-    Jump,      // 27. (relative jump) -> []
-    JumpTrue,  // 28. (relative jump) [a] -> []
-    JumpFalse, // 29. (relative jump) [a] -> []
+    Jump,      // 26. (relative jump) -> []
+    JumpTrue,  // 27. (relative jump) [a] -> []
+    JumpFalse, // 28. (relative jump) [a] -> []
 
-    Bind,     // 30. (K = no. binds) [a0, a1, ... aK] {} -> [] {a0, a1, ... aK}
-    Unbind,   // 31. (K = no. binds) {a0, a1, ... aK} -> {}
-    PushBind, // 32. (id) {aID} [] -> {aID} [aID]
-    PushVar,  // 33. (id) [] -> [a]
-    MakeVar,  // 34. (id) [a] -> []
+    Bind,     // 29. (K = no. binds) [a0, a1, ... aK] {} -> [] {a0, a1, ... aK}
+    Unbind,   // 30. (K = no. binds) {a0, a1, ... aK} -> {}
+    PushBind, // 31. (id) {aID} [] -> {aID} [aID]
+    PushVar,  // 32. (id) [] -> [a]
+    MakeVar,  // 33. (id) [a] -> []
 }
 
 struct Evaluator {
@@ -605,7 +602,6 @@ impl Evaluator {
                     .ok_or("Stack underflow!".to_string())? as *const i64;
                 self.data_stack.push(unsafe { *ptr });
             }
-            LoadStr => todo!(),
             Jump => {
                 let jump = self.program.functions[self.current_function].code[self.ip] as i64;
                 self.ip += 1;

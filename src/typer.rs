@@ -449,22 +449,14 @@ impl Typer {
 			}
 			Load => {
 				let a = self.type_stack().pop().ok_or("Cannot load non-existant data!".to_string())?;
-				match a {
-					parser::TypeSignature::Ptr(ptr_to) => {
-						if let parser::TypeSignature::Str = *ptr_to {
-							self.type_stack().push(parser::TypeSignature::Str);
-							generated.push(TypedIR {
-								kind: TypedIRKind::LoadStr,
-							});
-						} else {
-							self.type_stack().push(*ptr_to);
-							generated.push(TypedIR {
-								kind: TypedIRKind::Load,
-							});
-						}
-					}
-					_ => return Err(format!("Cannot load something of type `{}`!", a)),
-				}
+                if let parser::TypeSignature::Ptr(ptr_to) = a {
+                    self.type_stack().push(*ptr_to);
+                    generated.push(TypedIR {
+                        kind: TypedIRKind::Load,
+                    });
+                } else {
+					return Err(format!("Cannot load something of type `{}`!", a));
+                }
 			}
 			Call(name) => {
 				let function_type = self
@@ -890,7 +882,6 @@ pub enum TypedIRKind {
 	Gt,
 	Assign,
 	Load,
-	LoadStr,
 	Call(String),
 	Bind(usize),
 	Unbind(usize),

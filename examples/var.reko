@@ -20,4 +20,17 @@ do
 
 	"local:" print
 	local @ print
+
+	"" print
+
+    var string "Hello";
+    "string:" print
+    string @ print
+
+    "World" string <-
+
+	"" print
+
+    "string:" print
+    string @ print
 end
